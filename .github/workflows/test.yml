@@ -1,0 +1,27 @@
+name: Test
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  test:
+    name: Test
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Flutter
+        uses: tnc1997/github-actions/actions/setup-flutter@setup-flutter_v1
+        with:
+          channel: ${{ matrix.channel }}
+      - name: Test
+        run: flutter test --coverage
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-${{ matrix.channel }}
+          path: coverage/lcov.info
+    strategy:
+      matrix:
+        channel: [stable, beta]
+        os: [ubuntu-latest, windows-latest]

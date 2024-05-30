@@ -1,0 +1,32 @@
+name: google_sign_in_desktop
+description: Desktop implementation of the google_sign_in plugin. Please note that this implementation is not endorsed.
+version: 0.0.0
+homepage: https://github.com/tnc1997/flutter-google-sign-in-desktop
+
+environment:
+  sdk: '>=2.17.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  crypto: ^3.0.0
+  flutter:
+    sdk: flutter
+  google_sign_in_platform_interface: ^2.0.0
+  http: ^1.0.0
+  url_launcher: ^6.1.0
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    implements: google_sign_in
+    platforms:
+      linux:
+        dartPluginClass: GoogleSignInDesktop
+      macos:
+        dartPluginClass: GoogleSignInDesktop
+      windows:
+        dartPluginClass: GoogleSignInDesktop
