@@ -520,24 +520,6 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     }
   }
 
-  @override
-  Future<bool> canAccessScopes(List<String> scopes,
-      {String? accessToken}) async {
-    var tokenData = await _tokenDataStore.get();
-
-    if (tokenData == null || tokenData.accessToken != accessToken) {
-      return false;
-    }
-
-    final isTokenValid = tokenData.isExpired() == false;
-
-    return isTokenValid &&
-        _hasGrantedAllScopes(
-          queryScopes: scopes,
-          grantedScopes: tokenData.scopes!,
-        );
-  }
-
   bool _hasGrantedAllScopes({
     required List<String> queryScopes,
     required List<String> grantedScopes,
