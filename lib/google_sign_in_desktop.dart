@@ -251,7 +251,11 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     String? clientId,
   }) async {
     _clientId = ArgumentError.checkNotNull(clientId, 'clientId');
-    _scopes = {...scopes, 'openid', 'profile', 'email'}.toList();
+    _scopes = _buildEffectiveScopes(scopes);
+  }
+
+  List<String> _buildEffectiveScopes(List<String> scopes) {
+    return {...scopes, 'openid', 'profile', 'email'}.toList();
   }
 
   @override
@@ -454,6 +458,109 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
       }
     } finally {
       await server.close();
+    }
+  }
+
+  @override
+  // ignore: avoid_renaming_method_parameters
+  Future<bool> requestScopes(List<String> requestedScopes) async {
+    if (requestedScopes.isEmpty) {
+      return false;
+    }
+
+    // Keep track of the previous scopes in case we need to revert
+    final previousScopes = _scopes;
+
+    try {
+      // Merge the current scopes with the requested scopes.
+      _scopes =
+          _buildEffectiveScopes({..._scopes, ...requestedScopes}.toList());
+
+      GoogleSignInDesktopTokenData tokenData;
+      final String? email = _userData?.email;
+      if (email == null) {
+        // Not signed in, so fresh sign in with the new scopes
+        final signInRes = await _signIn();
+        tokenData = signInRes.$1;
+      } else {
+        // Already signed in, so get the token data to see if the scopes are already granted
+        tokenData = await getTokens(email: email, shouldRecoverAuth: false);
+      }
+
+      assert(tokenData.scopes != null);
+      final tokenScopes = tokenData.scopes ?? [];
+
+      final hasGrantedScopes = _hasGrantedAllScopes(
+        queryScopes: requestedScopes,
+        grantedScopes: tokenScopes,
+      );
+
+      if (email == null) {
+        // It was a fresh sign in, so just return whatever we get
+        return hasGrantedScopes;
+      }
+
+      if (hasGrantedScopes) {
+        return true;
+      }
+
+      // The requested scopes are not granted, so try to sign in with the new scopes
+      final tokenData2nd = (await _signIn()).$1;
+      assert(tokenData2nd.scopes != null);
+      final tokenScopes2nd = tokenData2nd.scopes ?? [];
+
+      return _hasGrantedAllScopes(
+        queryScopes: requestedScopes,
+        grantedScopes: tokenScopes2nd,
+      );
+    } catch (_) {
+      // If something goes wrong, revert the scopes back to the previous state
+      _scopes = previousScopes;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<bool> canAccessScopes(List<String> scopes,
+      {String? accessToken}) async {
+    var tokenData = await _tokenDataStore.get();
+
+    if (tokenData == null || tokenData.accessToken != accessToken) {
+      return false;
+    }
+
+    final isTokenValid = tokenData.isExpired() == false;
+
+    return isTokenValid &&
+        _hasGrantedAllScopes(
+          queryScopes: scopes,
+          grantedScopes: tokenData.scopes!,
+        );
+  }
+
+  bool _hasGrantedAllScopes({
+    required List<String> queryScopes,
+    required List<String> grantedScopes,
+  }) {
+    return queryScopes.every((scope) {
+      final contained = grantedScopes.contains(scope);
+      if (contained) {
+        return true;
+      }
+      final altScopeName = _getAlternativeScopeName(scope);
+      return altScopeName != null && grantedScopes.contains(altScopeName);
+    });
+  }
+
+  /// The scope in the http response can have a different name than the one requested.
+  String? _getAlternativeScopeName(String scope) {
+    switch (scope) {
+      case 'email':
+        return 'https://www.googleapis.com/auth/userinfo.email';
+      case 'profile':
+        return 'https://www.googleapis.com/auth/userinfo.profile';
+      default:
+        return null;
     }
   }
 }
