@@ -64,13 +64,13 @@ The desktop implementation implements the following methods:
 
 | Method            |    |
 |-------------------|----|
-| `canAccessScopes` | ❌  |
+| `canAccessScopes` | ✔️ |
 | `clearAuthCache`  | ✔️ |
 | `disconnect`      | ✔️ |
 | `getTokens`       | ✔️ |
 | `init`            | ✔️ |
 | `isSignedIn`      | ✔️ |
-| `requestScopes`   | ❌  |
+| `requestScopes`   | ✔️ |
 | `signIn`          | ✔️ |
 | `signInSilently`  | ✔️ |
 | `signOut`         | ✔️ |
