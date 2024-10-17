@@ -366,6 +366,8 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
             'redirect_uri': redirectUri,
             'response_type': 'code',
             'scope': _scopes.join(' '),
+            // So that we get a refresh token every time we sign in
+            'access_type': 'offline',
             'code_challenge': codeChallenge,
             'code_challenge_method': 'S256',
             'state': state,
