@@ -482,7 +482,6 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   }
 
   @override
-  // ignore: avoid_renaming_method_parameters
   Future<bool> requestScopes(List<String> scopes) async {
     if (scopes.isEmpty) {
       throw ArgumentError.value(
