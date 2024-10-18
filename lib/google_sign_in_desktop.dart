@@ -34,6 +34,22 @@ const _kSignInRequiredError = 'sign_in_required';
 /// Error code indicating that authentication can be recovered with user action.
 const _kUserRecoverableAuthError = 'user_recoverable_auth';
 
+/// This scope value requests access to the email and email_verified claims.
+const _kOpenidEmailScope = 'email';
+
+/// This scope value requests access to the sub claim.
+const _kOpenidOpenidScope = 'openid';
+
+/// This scope value requests access to the end-user's default profile claims, which are: name, family_name, given_name, middle_name, nickname, preferred_username, profile, picture, website, gender, birthdate, zoneinfo, locale, and updated_at.
+const _kOpenidProfileScope = 'profile';
+
+/// See your primary Google Account email address.
+const _kUserinfoEmailScope = 'https://www.googleapis.com/auth/userinfo.email';
+
+/// See your personal info, including any personal info you've made publicly available.
+const _kUserinfoProfileScope =
+    'https://www.googleapis.com/auth/userinfo.profile';
+
 /// The desktop implementation of `google_sign_in`.
 class GoogleSignInDesktop extends GoogleSignInPlatform {
   /// The client that sends the token request, the userinfo request, and the revocation request.
@@ -251,11 +267,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     String? clientId,
   }) async {
     _clientId = ArgumentError.checkNotNull(clientId, 'clientId');
-    _scopes = _buildEffectiveScopes(scopes);
-  }
-
-  List<String> _buildEffectiveScopes(List<String> scopes) {
-    return {...scopes, 'openid', 'profile', 'email'}.toList();
+    _scopes = scopes;
   }
 
   @override
@@ -369,7 +381,13 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
             'client_id': _clientId,
             'redirect_uri': redirectUri,
             'response_type': 'code',
-            'scope': _scopes.join(' '),
+            'scope': {
+              ..._scopes,
+              // Always include open id scopes
+              _kOpenidOpenidScope,
+              _kOpenidProfileScope,
+              _kOpenidEmailScope,
+            }.join(' '),
             'code_challenge': codeChallenge,
             'code_challenge_method': 'S256',
             'state': state,
@@ -465,55 +483,47 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
 
   @override
   // ignore: avoid_renaming_method_parameters
-  Future<bool> requestScopes(List<String> requestedScopes) async {
-    if (requestedScopes.isEmpty) {
-      return false;
+  Future<bool> requestScopes(List<String> scopes) async {
+    if (scopes.isEmpty) {
+      throw ArgumentError.value(
+        scopes,
+        'scopes',
+        'Scopes must not be empty',
+      );
     }
 
     // Keep track of the previous scopes in case we need to revert
     final previousScopes = _scopes;
 
     try {
-      // Merge the current scopes with the requested scopes.
-      _scopes =
-          _buildEffectiveScopes({..._scopes, ...requestedScopes}.toList());
+      var tokenData = await _tokenDataStore.get();
+      if (tokenData == null) {
+        // Merge the current scopes with the requested scopes.
+        _scopes = {..._scopes, ...scopes}.toList();
+        tokenData = (await _signIn()).$1;
 
-      GoogleSignInDesktopTokenData tokenData;
-      final String? email = _userData?.email;
-      if (email == null) {
-        // Not signed in, so fresh sign in with the new scopes
-        final signInRes = await _signIn();
-        tokenData = signInRes.$1;
-      } else {
-        // Already signed in, so get the token data to see if the scopes are already granted
-        tokenData = await getTokens(email: email, shouldRecoverAuth: false);
+        // It's a fresh sign in, so directly return if the requested scopes are granted
+        return _hasGrantedAllScopes(
+          tokenData: tokenData,
+          scopes: scopes,
+        );
       }
 
-      assert(tokenData.scopes != null);
-      final tokenScopes = tokenData.scopes ?? [];
-
-      final hasGrantedScopes = _hasGrantedAllScopes(
-        queryScopes: requestedScopes,
-        grantedScopes: tokenScopes,
-      );
-
-      if (email == null) {
-        // It was a fresh sign in, so just return whatever we get
-        return hasGrantedScopes;
-      }
-
-      if (hasGrantedScopes) {
+      if (_hasGrantedAllScopes(
+        tokenData: tokenData,
+        scopes: scopes,
+      )) {
         return true;
       }
 
       // The requested scopes are not granted, so try to sign in with the new scopes
-      final tokenData2nd = (await _signIn()).$1;
-      assert(tokenData2nd.scopes != null);
-      final tokenScopes2nd = tokenData2nd.scopes ?? [];
+      // Merge the current scopes with the requested scopes.
+      _scopes = {..._scopes, ...scopes}.toList();
+      tokenData = (await _signIn()).$1;
 
       return _hasGrantedAllScopes(
-        queryScopes: requestedScopes,
-        grantedScopes: tokenScopes2nd,
+        tokenData: tokenData,
+        scopes: scopes,
       );
     } catch (_) {
       // If something goes wrong, revert the scopes back to the previous state
@@ -523,29 +533,26 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   }
 
   bool _hasGrantedAllScopes({
-    required List<String> queryScopes,
-    required List<String> grantedScopes,
+    required GoogleSignInDesktopTokenData tokenData,
+    required List<String> scopes,
   }) {
-    return queryScopes.every((scope) {
-      final contained = grantedScopes.contains(scope);
-      if (contained) {
-        return true;
-      }
-      final altScopeName = _getAlternativeScopeName(scope);
-      return altScopeName != null && grantedScopes.contains(altScopeName);
-    });
-  }
-
-  /// The scope in the http response can have a different name than the one requested.
-  String? _getAlternativeScopeName(String scope) {
-    switch (scope) {
-      case 'email':
-        return 'https://www.googleapis.com/auth/userinfo.email';
-      case 'profile':
-        return 'https://www.googleapis.com/auth/userinfo.profile';
-      default:
-        return null;
+    final tokenScopes = tokenData.scopes;
+    if (tokenScopes == null) {
+      return false;
     }
+
+    return scopes.every(
+      (scope) {
+        return tokenScopes.any((tokenScope) {
+          return scope == tokenScope ||
+              // The scope name is different when requesting it than when it is granted
+              (scope == _kOpenidEmailScope &&
+                  tokenScope == _kUserinfoEmailScope) ||
+              (scope == _kOpenidProfileScope &&
+                  tokenScope == _kUserinfoProfileScope);
+        });
+      },
+    );
   }
 }
 
