@@ -662,6 +662,14 @@ void main() {
                   'TestState',
                 ),
               );
+
+              expect(
+                url.queryParameters,
+                containsPair(
+                  'access_type',
+                  'offline',
+                ),
+              );
             },
           );
 
@@ -871,6 +879,14 @@ void main() {
                 containsPair(
                   'state',
                   'TestState',
+                ),
+              );
+
+              expect(
+                url.queryParameters,
+                containsPair(
+                  'access_type',
+                  'offline',
                 ),
               );
             },

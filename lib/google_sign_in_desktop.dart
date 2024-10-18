@@ -373,6 +373,8 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
             'code_challenge': codeChallenge,
             'code_challenge_method': 'S256',
             'state': state,
+            // https://developers.google.com/identity/protocols/oauth2/web-server#offline
+            'access_type': 'offline',
           },
         ),
       );
