@@ -531,10 +531,10 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     }
   }
 
-  bool _hasGrantedAllScopes({
-    required GoogleSignInDesktopTokenData tokenData,
-    required List<String> scopes,
-  }) {
+  bool _hasGrantedAllScopes(
+    GoogleSignInDesktopTokenData tokenData,
+    List<String> scopes,
+) {
     final tokenScopes = tokenData.scopes;
     if (tokenScopes == null) {
       return false;
