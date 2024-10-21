@@ -502,16 +502,10 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
         tokenData = (await _signIn()).$1;
 
         // It's a fresh sign in, so directly return if the requested scopes are granted
-        return _hasGrantedAllScopes(
-          tokenData: tokenData,
-          scopes: scopes,
-        );
+        return _hasGrantedAllScopes(tokenData, scopes);
       }
 
-      if (_hasGrantedAllScopes(
-        tokenData: tokenData,
-        scopes: scopes,
-      )) {
+      if (_hasGrantedAllScopes(tokenData, scopes)) {
         return true;
       }
 
@@ -520,10 +514,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
       _scopes = {..._scopes, ...scopes}.toList();
       tokenData = (await _signIn()).$1;
 
-      return _hasGrantedAllScopes(
-        tokenData: tokenData,
-        scopes: scopes,
-      );
+      return _hasGrantedAllScopes(tokenData, scopes);
     } catch (_) {
       // If something goes wrong, revert the scopes back to the previous state
       _scopes = previousScopes;
@@ -534,7 +525,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   bool _hasGrantedAllScopes(
     GoogleSignInDesktopTokenData tokenData,
     List<String> scopes,
-) {
+  ) {
     final tokenScopes = tokenData.scopes;
     if (tokenScopes == null) {
       return false;
