@@ -276,6 +276,49 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   }
 
   @override
+  Future<bool> requestScopes(
+    List<String> scopes,
+  ) async {
+    if (scopes.isEmpty) {
+      throw ArgumentError.value(
+        scopes,
+        'scopes',
+        'Scopes must not be empty',
+      );
+    }
+
+    // Keep track of the previous scopes in case we need to revert
+    final previousScopes = _scopes;
+
+    try {
+      // Merge the current scopes with the requested scopes
+      _scopes = {..._scopes, ...scopes}.toList();
+
+      var tokenData = await _tokenDataStore.get();
+      if (tokenData == null) {
+        tokenData = (await _signIn()).$1;
+
+        // It's a fresh sign in, so directly return if the requested scopes are granted
+        return _hasGrantedAllScopes(tokenData, scopes);
+      }
+
+      if (_hasGrantedAllScopes(tokenData, scopes)) {
+        return true;
+      }
+
+      // The requested scopes are not granted, so try to sign in with the new scopes
+      tokenData = (await _signIn()).$1;
+
+      return _hasGrantedAllScopes(tokenData, scopes);
+    } catch (_) {
+      // If something goes wrong, revert the scopes back to the previous state
+      _scopes = previousScopes;
+
+      rethrow;
+    }
+  }
+
+  @override
   Future<GoogleSignInUserData?> signIn() async {
     try {
       return (await _signIn()).$2;
@@ -354,6 +397,29 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     _userData = null;
 
     _userDataEvents.add(_userData);
+  }
+
+  bool _hasGrantedAllScopes(
+    GoogleSignInDesktopTokenData tokenData,
+    List<String> scopes,
+  ) {
+    final tokenScopes = tokenData.scopes;
+    if (tokenScopes == null) {
+      return false;
+    }
+
+    return scopes.every(
+      (scope) {
+        return tokenScopes.any((tokenScope) {
+          return scope == tokenScope ||
+              // The scope name is different when requesting it than when it is granted
+              (scope == _kOpenidEmailScope &&
+                  tokenScope == _kUserinfoEmailScope) ||
+              (scope == _kOpenidProfileScope &&
+                  tokenScope == _kUserinfoProfileScope);
+        });
+      },
+    );
   }
 
   Future<_Tuple2<GoogleSignInDesktopTokenData, GoogleSignInUserData>>
@@ -479,70 +545,6 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     } finally {
       await server.close();
     }
-  }
-
-  @override
-  Future<bool> requestScopes(List<String> scopes) async {
-    if (scopes.isEmpty) {
-      throw ArgumentError.value(
-        scopes,
-        'scopes',
-        'Scopes must not be empty',
-      );
-    }
-
-    // Keep track of the previous scopes in case we need to revert
-    final previousScopes = _scopes;
-
-    try {
-      var tokenData = await _tokenDataStore.get();
-      if (tokenData == null) {
-        // Merge the current scopes with the requested scopes.
-        _scopes = {..._scopes, ...scopes}.toList();
-        tokenData = (await _signIn()).$1;
-
-        // It's a fresh sign in, so directly return if the requested scopes are granted
-        return _hasGrantedAllScopes(tokenData, scopes);
-      }
-
-      if (_hasGrantedAllScopes(tokenData, scopes)) {
-        return true;
-      }
-
-      // The requested scopes are not granted, so try to sign in with the new scopes
-      // Merge the current scopes with the requested scopes.
-      _scopes = {..._scopes, ...scopes}.toList();
-      tokenData = (await _signIn()).$1;
-
-      return _hasGrantedAllScopes(tokenData, scopes);
-    } catch (_) {
-      // If something goes wrong, revert the scopes back to the previous state
-      _scopes = previousScopes;
-      rethrow;
-    }
-  }
-
-  bool _hasGrantedAllScopes(
-    GoogleSignInDesktopTokenData tokenData,
-    List<String> scopes,
-  ) {
-    final tokenScopes = tokenData.scopes;
-    if (tokenScopes == null) {
-      return false;
-    }
-
-    return scopes.every(
-      (scope) {
-        return tokenScopes.any((tokenScope) {
-          return scope == tokenScope ||
-              // The scope name is different when requesting it than when it is granted
-              (scope == _kOpenidEmailScope &&
-                  tokenScope == _kUserinfoEmailScope) ||
-              (scope == _kOpenidProfileScope &&
-                  tokenScope == _kUserinfoProfileScope);
-        });
-      },
-    );
   }
 }
 
