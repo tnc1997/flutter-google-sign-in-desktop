@@ -64,7 +64,7 @@ The desktop implementation implements the following methods:
 
 | Method            |    |
 |-------------------|----|
-| `canAccessScopes` | ❌ |
+| `canAccessScopes` | ❌  |
 | `clearAuthCache`  | ✔️ |
 | `disconnect`      | ✔️ |
 | `getTokens`       | ✔️ |
