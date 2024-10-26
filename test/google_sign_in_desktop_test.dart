@@ -83,6 +83,181 @@ void main() {
       );
 
       group(
+        'customPostAuthPage',
+        () {
+          late GoogleSignInDesktopTokenData Function(
+            Response response, {
+            String? idToken,
+            String? refreshToken,
+          }) createTokenData;
+          late GoogleSignInUserData Function(
+            Response response, {
+            String? idToken,
+          }) createUserData;
+          late Future<void> Function(
+            Uri url,
+          ) launchUrl;
+          late GoogleSignInDesktop plugin;
+
+          setUp(
+            () {
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                );
+              };
+
+              createUserData = (
+                response, {
+                idToken,
+              }) {
+                return GoogleSignInUserData(
+                  email: 'TestEmail',
+                  id: 'TestId',
+                  displayName: 'TestDisplayName',
+                  photoUrl: 'TestPhotoUrl',
+                  idToken: idToken ?? 'TestIdToken',
+                );
+              };
+
+              plugin = GoogleSignInDesktop(
+                client: client,
+                createCodeChallenge: createCodeChallenge,
+                createCodeVerifier: createCodeVerifier,
+                createState: createState,
+                createTokenData: createTokenData,
+                createUserData: createUserData,
+                launchUrl: (url) async {
+                  return await launchUrl(url);
+                },
+              );
+            },
+          );
+
+          test(
+            'should respond with the custom post auth page if the custom post auth page is not null',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.customPostAuthPage = 'TestCustomPostAuthPage';
+
+              plugin.tokenDataStore = tokenDataStore;
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                scopes: ['openid', 'profile', 'email'],
+                clientId: 'TestClientId',
+              );
+
+              late Response response;
+
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.signIn();
+                    })(),
+                    (() async {
+                      final url = await authorizationCompleter.future.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      response = await get(
+                        Uri.parse(
+                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing the responding to the server request
+              }
+
+              expect(
+                response.body,
+                'TestCustomPostAuthPage',
+              );
+            },
+          );
+
+          test(
+            'should respond with the default post auth page if the custom post auth page is null',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore;
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                scopes: ['openid', 'profile', 'email'],
+                clientId: 'TestClientId',
+              );
+
+              late Response response;
+
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.signIn();
+                    })(),
+                    (() async {
+                      final url = await authorizationCompleter.future.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      response = await get(
+                        Uri.parse(
+                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing the responding to the server request
+              }
+
+              expect(
+                response.body,
+                '''<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Authorization successful.</title>
+  </head>
+  <body>
+    <h2 style="text-align: center">Application has successfully obtained access credentials</h2>
+    <p style="text-align: center">This window can be closed now.</p>
+  </body>
+</html>''',
+              );
+            },
+          );
+        },
+      );
+
+      group(
         'registerWith',
         () {
           test(

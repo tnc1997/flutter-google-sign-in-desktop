@@ -530,16 +530,16 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
           ..headers.set('content-type', 'text/html; charset=UTF-8')
           ..write(_customPostAuthPage ??
               '''<!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authorization successful.</title>
-          </head>
-          <body>
-            <h2 style="text-align: center">Application has successfully obtained access credentials</h2>
-            <p style="text-align: center">This window can be closed now.</p>
-          </body>
-        </html>''');
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Authorization successful.</title>
+  </head>
+  <body>
+    <h2 style="text-align: center">Application has successfully obtained access credentials</h2>
+    <p style="text-align: center">This window can be closed now.</p>
+  </body>
+</html>''');
 
         await request.response.close();
 
