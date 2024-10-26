@@ -714,6 +714,411 @@ void main() {
       );
 
       group(
+        'requestScopes',
+        () {
+          late GoogleSignInDesktopTokenData Function(
+            Response response, {
+            String? idToken,
+            String? refreshToken,
+          }) createTokenData;
+          late GoogleSignInUserData Function(
+            Response response, {
+            String? idToken,
+          }) createUserData;
+          late Future<void> Function(
+            Uri url,
+          ) launchUrl;
+          late GoogleSignInDesktop plugin;
+
+          setUp(
+            () {
+              createUserData = (
+                response, {
+                idToken,
+              }) {
+                return GoogleSignInUserData(
+                  email: 'TestEmail',
+                  id: 'TestId',
+                  displayName: 'TestDisplayName',
+                  photoUrl: 'TestPhotoUrl',
+                  idToken: idToken ?? 'TestIdToken',
+                );
+              };
+
+              plugin = GoogleSignInDesktop(
+                client: client,
+                createCodeChallenge: createCodeChallenge,
+                createCodeVerifier: createCodeVerifier,
+                createState: createState,
+                createTokenData: (
+                  response, {
+                  idToken,
+                  refreshToken,
+                }) {
+                  return createTokenData(
+                    response,
+                    idToken: idToken,
+                    refreshToken: refreshToken,
+                  );
+                },
+                createUserData: createUserData,
+                launchUrl: (url) async {
+                  return await launchUrl(url);
+                },
+              );
+            },
+          );
+
+          test(
+            'should return false if the token data is null and the scopes are not granted',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: [],
+                );
+              };
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              late bool actual;
+
+              await Future.wait(
+                [
+                  (() async {
+                    actual = await plugin.requestScopes(['openid']);
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
+
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
+
+              expect(
+                actual,
+                isFalse,
+              );
+            },
+          );
+
+          test(
+            'should return true if the token data is not null and the scopes have been granted',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  scopes: ['openid'],
+                );
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              expect(
+                await plugin.requestScopes(['openid']),
+                isTrue,
+              );
+            },
+          );
+
+          test(
+            'should return true if the token data is not null and the scopes have been granted with different names',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  scopes: ['https://www.googleapis.com/auth/userinfo.profile'],
+                );
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              expect(
+                await plugin.requestScopes(['profile']),
+                isTrue,
+              );
+            },
+          );
+
+          test(
+            'should return true if the token data is null and the scopes are granted',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: ['openid'],
+                );
+              };
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              late bool actual;
+
+              await Future.wait(
+                [
+                  (() async {
+                    actual = await plugin.requestScopes(['openid']);
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
+
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
+
+              expect(
+                actual,
+                isTrue,
+              );
+            },
+          );
+
+          test(
+            'should return true if the token data is null and the scopes are granted with different names',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: ['https://www.googleapis.com/auth/userinfo.profile'],
+                );
+              };
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              late bool actual;
+
+              await Future.wait(
+                [
+                  (() async {
+                    actual = await plugin.requestScopes(['profile']);
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
+
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
+
+              expect(
+                actual,
+                isTrue,
+              );
+            },
+          );
+
+          test(
+            'should revert the scopes if an exception is thrown',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: [],
+                );
+              };
+
+              final authorizationController = StreamController<Uri>.broadcast();
+
+              launchUrl = (url) async {
+                authorizationController.add(url);
+              };
+
+              await plugin.init(
+                scopes: [],
+                clientId: 'TestClientId',
+              );
+
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.requestScopes(['TestScope1']);
+                    })(),
+                    (() async {
+                      final url =
+                          await authorizationController.stream.first.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      await get(
+                        Uri.parse(
+                          url.queryParameters['redirect_uri']!,
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing that the scopes are reverted
+              }
+
+              late Uri url;
+
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.requestScopes(['TestScope2']);
+                    })(),
+                    (() async {
+                      url = await authorizationController.stream.first.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      await get(
+                        Uri.parse(
+                          url.queryParameters['redirect_uri']!,
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing that the scopes are reverted
+              }
+
+              expect(
+                url.queryParameters['scope'],
+                isNot(
+                  contains(
+                    'TestScope1',
+                  ),
+                ),
+              );
+
+              expect(
+                url.queryParameters['scope'],
+                contains(
+                  'TestScope2',
+                ),
+              );
+            },
+          );
+
+          test(
+            'should throw an argument error if the scopes is empty',
+            () {
+              expect(
+                () async {
+                  await plugin.requestScopes([]);
+                },
+                throwsArgumentError,
+              );
+            },
+          );
+
+          test(
+            'should throw an error if the token data store has not been set',
+            () {
+              expect(
+                () async {
+                  await plugin.requestScopes(['openid']);
+                },
+                throwsA(
+                  isA<Error>(),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      group(
         'signIn',
         () {
           late GoogleSignInDesktopTokenData Function(
