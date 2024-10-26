@@ -34,6 +34,22 @@ const _kSignInRequiredError = 'sign_in_required';
 /// Error code indicating that authentication can be recovered with user action.
 const _kUserRecoverableAuthError = 'user_recoverable_auth';
 
+/// This scope value requests access to the email and email_verified claims.
+const _kOpenidEmailScope = 'email';
+
+/// This scope value requests access to the sub claim.
+const _kOpenidOpenidScope = 'openid';
+
+/// This scope value requests access to the end-user's default profile claims, which are: name, family_name, given_name, middle_name, nickname, preferred_username, profile, picture, website, gender, birthdate, zoneinfo, locale, and updated_at.
+const _kOpenidProfileScope = 'profile';
+
+/// See your primary Google Account email address.
+const _kUserinfoEmailScope = 'https://www.googleapis.com/auth/userinfo.email';
+
+/// See your personal info, including any personal info you've made publicly available.
+const _kUserinfoProfileScope =
+    'https://www.googleapis.com/auth/userinfo.profile';
+
 /// The desktop implementation of `google_sign_in`.
 class GoogleSignInDesktop extends GoogleSignInPlatform {
   /// The client that sends the token request, the userinfo request, and the revocation request.
@@ -251,12 +267,55 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     String? clientId,
   }) async {
     _clientId = ArgumentError.checkNotNull(clientId, 'clientId');
-    _scopes = {...scopes, 'openid', 'profile', 'email'}.toList();
+    _scopes = scopes;
   }
 
   @override
   Future<bool> isSignedIn() async {
     return _userData != null;
+  }
+
+  @override
+  Future<bool> requestScopes(
+    List<String> scopes,
+  ) async {
+    if (scopes.isEmpty) {
+      throw ArgumentError.value(
+        scopes,
+        'scopes',
+        'Scopes must not be empty',
+      );
+    }
+
+    // Keep track of the previous scopes in case we need to revert
+    final previousScopes = _scopes;
+
+    try {
+      // Merge the current scopes with the requested scopes
+      _scopes = {..._scopes, ...scopes}.toList();
+
+      var tokenData = await _tokenDataStore.get();
+      if (tokenData == null) {
+        tokenData = (await _signIn()).$1;
+
+        // It's a fresh sign in, so directly return if the requested scopes are granted
+        return _hasGrantedAllScopes(tokenData, scopes);
+      }
+
+      if (_hasGrantedAllScopes(tokenData, scopes)) {
+        return true;
+      }
+
+      // The requested scopes are not granted, so try to sign in with the new scopes
+      tokenData = (await _signIn()).$1;
+
+      return _hasGrantedAllScopes(tokenData, scopes);
+    } catch (_) {
+      // If something goes wrong, revert the scopes back to the previous state
+      _scopes = previousScopes;
+
+      rethrow;
+    }
   }
 
   @override
@@ -340,6 +399,29 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     _userDataEvents.add(_userData);
   }
 
+  bool _hasGrantedAllScopes(
+    GoogleSignInDesktopTokenData tokenData,
+    List<String> scopes,
+  ) {
+    final tokenScopes = tokenData.scopes;
+    if (tokenScopes == null) {
+      return false;
+    }
+
+    return scopes.every(
+      (scope) {
+        return tokenScopes.any((tokenScope) {
+          return scope == tokenScope ||
+              // The scope name is different when requesting it than when it is granted
+              (scope == _kOpenidEmailScope &&
+                  tokenScope == _kUserinfoEmailScope) ||
+              (scope == _kOpenidProfileScope &&
+                  tokenScope == _kUserinfoProfileScope);
+        });
+      },
+    );
+  }
+
   Future<_Tuple2<GoogleSignInDesktopTokenData, GoogleSignInUserData>>
       _signIn() async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -365,7 +447,13 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
             'client_id': _clientId,
             'redirect_uri': redirectUri,
             'response_type': 'code',
-            'scope': _scopes.join(' '),
+            'scope': {
+              ..._scopes,
+              // Always include open id scopes
+              _kOpenidOpenidScope,
+              _kOpenidProfileScope,
+              _kOpenidEmailScope,
+            }.join(' '),
             'code_challenge': codeChallenge,
             'code_challenge_method': 'S256',
             'state': state,
