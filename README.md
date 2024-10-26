@@ -70,7 +70,7 @@ The desktop implementation implements the following methods:
 | `getTokens`       | ✔️ |
 | `init`            | ✔️ |
 | `isSignedIn`      | ✔️ |
-| `requestScopes`   | ❌  |
+| `requestScopes`   | ✔️ |
 | `signIn`          | ✔️ |
 | `signInSilently`  | ✔️ |
 | `signOut`         | ✔️ |
