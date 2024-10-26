@@ -96,6 +96,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
 
   late String _clientId;
   late String _clientSecret;
+  String? _customPostAuthPage;
   late List<String> _scopes;
   late GoogleSignInDesktopStore<GoogleSignInDesktopTokenData> _tokenDataStore;
   GoogleSignInUserData? _userData;
@@ -147,6 +148,13 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
     String clientSecret,
   ) {
     _clientSecret = clientSecret;
+  }
+
+  /// Sets the HTML for the page that is shown to the user after they have authenticated successfully.
+  set customPostAuthPage(
+    String? customPostAuthPage,
+  ) {
+    _customPostAuthPage = customPostAuthPage;
   }
 
   /// Sets the token data store that is used to store tokens between sessions.
@@ -520,17 +528,18 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
         request.response
           ..statusCode = 200
           ..headers.set('content-type', 'text/html; charset=UTF-8')
-          ..write('''<!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Authorization successful.</title>
-          </head>
-          <body>
-            <h2 style="text-align: center">Application has successfully obtained access credentials</h2>
-            <p style="text-align: center">This window can be closed now.</p>
-          </body>
-        </html>''');
+          ..write(_customPostAuthPage ??
+              '''<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Authorization successful.</title>
+  </head>
+  <body>
+    <h2 style="text-align: center">Application has successfully obtained access credentials</h2>
+    <p style="text-align: center">This window can be closed now.</p>
+  </body>
+</html>''');
 
         await request.response.close();
 
