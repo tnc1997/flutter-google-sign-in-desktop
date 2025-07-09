@@ -1,9 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in_desktop/src/create_user_data.dart';
 import 'package:google_sign_in_desktop/src/exceptions/response_decode_exception.dart';
 import 'package:google_sign_in_desktop/src/exceptions/userinfo_request_exception.dart';
+import 'package:google_sign_in_desktop/src/functions/create_user_data.dart';
 import 'package:http/http.dart';
 
 void main() {
@@ -196,25 +196,6 @@ void main() {
               ),
             ).photoUrl,
             null,
-          );
-        },
-      );
-
-      test(
-        'should return a user data with an id token if an id token is provided',
-        () {
-          expect(
-            createUserData(
-              Response(
-                json.encode({
-                  'email': 'TestEmail',
-                  'sub': 'TestId',
-                }),
-                200,
-              ),
-              idToken: 'TestIdToken',
-            ).idToken,
-            'TestIdToken',
           );
         },
       );

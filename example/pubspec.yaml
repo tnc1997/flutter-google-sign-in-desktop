@@ -31,14 +31,14 @@ dependencies:
   cupertino_icons: ^1.0.0
   flutter:
     sdk: flutter
-  google_sign_in: ^6.0.0
+  google_sign_in: ^7.0.0
   google_sign_in_desktop:
     path: ..
-  google_sign_in_platform_interface: ^2.0.0
+  google_sign_in_platform_interface: ^3.0.0
   http: ^1.0.0
 
 dev_dependencies:
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
 

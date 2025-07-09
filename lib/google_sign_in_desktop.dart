@@ -1,38 +1,25 @@
-library google_sign_in_desktop;
+library;
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:flutter/services.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:http/http.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
-import 'src/create_code_challenge.dart' as create_code_challenge;
-import 'src/create_code_verifier.dart' as create_code_verifier;
-import 'src/create_state.dart' as create_state;
-import 'src/create_token_data.dart' as create_token_data;
-import 'src/create_user_data.dart' as create_user_data;
 import 'src/exceptions/authorization_request_exception.dart';
 import 'src/exceptions/state_validation_exception.dart';
+import 'src/functions/create_code_challenge.dart' as code_challenge_creator;
+import 'src/functions/create_code_verifier.dart' as code_verifier_creator;
+import 'src/functions/create_state.dart' as state_creator;
+import 'src/functions/create_token_data.dart' as token_data_creator;
+import 'src/functions/create_user_data.dart' as user_data_creator;
 import 'src/google_sign_in_desktop_store.dart';
 import 'src/google_sign_in_desktop_token_data.dart';
 
 export 'src/google_sign_in_desktop_store.dart';
 export 'src/google_sign_in_desktop_token_data.dart';
-
-/// Error code indicating there was a failed attempt to recover user authentication.
-const _kFailedToRecoverAuthError = 'failed_to_recover_auth';
-
-/// Error code indicating that attempt to sign in failed.
-const _kSignInFailedError = 'sign_in_failed';
-
-/// Error code indicating there is no signed in user and interactive sign in flow is required.
-const _kSignInRequiredError = 'sign_in_required';
-
-/// Error code indicating that authentication can be recovered with user action.
-const _kUserRecoverableAuthError = 'user_recoverable_auth';
 
 /// This scope value requests access to the email and email_verified claims.
 const _kOpenidEmailScope = 'email';
@@ -52,6 +39,9 @@ const _kUserinfoProfileScope =
 
 /// The desktop implementation of `google_sign_in`.
 class GoogleSignInDesktop extends GoogleSignInPlatform {
+  /// The stream controller that controls the authentication events stream.
+  final StreamController<AuthenticationEvent> _authenticationEvents;
+
   /// The client that sends the token request, the userinfo request, and the revocation request.
   final Client _client;
 
@@ -79,9 +69,8 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
 
   /// The function that creates a user data.
   final GoogleSignInUserData Function(
-    Response response, {
-    String? idToken,
-  }) _createUserData;
+    Response response,
+  ) _createUserData;
 
   /// The function that launches a url.
   final Future<void> Function(
@@ -91,17 +80,13 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   /// The random that generates random cryptographic values.
   final Random _random;
 
-  /// The stream controller that controls the user data events stream.
-  final StreamController<GoogleSignInUserData?> _userDataEvents;
-
   late String _clientId;
   late String _clientSecret;
   String? _customPostAuthPage;
-  late List<String> _scopes;
   late GoogleSignInDesktopStore<GoogleSignInDesktopTokenData> _tokenDataStore;
-  GoogleSignInUserData? _userData;
 
   GoogleSignInDesktop({
+    StreamController<AuthenticationEvent>? authenticationEvents,
     Client? client,
     String Function(
       String codeVerifier,
@@ -118,29 +103,29 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
       String? refreshToken,
     })? createTokenData,
     GoogleSignInUserData Function(
-      Response response, {
-      String? idToken,
-    })? createUserData,
+      Response response,
+    )? createUserData,
     Future<void> Function(
       Uri url,
     )? launchUrl,
     Random? random,
-    StreamController<GoogleSignInUserData?>? userDataEvents,
-  })  : _client = client ?? Client(),
+  })  : _authenticationEvents =
+            authenticationEvents ?? StreamController.broadcast(),
+        _client = client ?? Client(),
         _createCodeChallenge =
-            createCodeChallenge ?? create_code_challenge.createCodeChallenge,
+            createCodeChallenge ?? code_challenge_creator.createCodeChallenge,
         _createCodeVerifier =
-            createCodeVerifier ?? create_code_verifier.createCodeVerifier,
-        _createState = createState ?? create_state.createState,
-        _createTokenData = createTokenData ?? create_token_data.createTokenData,
-        _createUserData = createUserData ?? create_user_data.createUserData,
+            createCodeVerifier ?? code_verifier_creator.createCodeVerifier,
+        _createState = createState ?? state_creator.createState,
+        _createTokenData =
+            createTokenData ?? token_data_creator.createTokenData,
+        _createUserData = createUserData ?? user_data_creator.createUserData,
         _launchUrl = launchUrl ?? url_launcher.launchUrl,
-        _random = random ?? Random.secure(),
-        _userDataEvents = userDataEvents ?? StreamController.broadcast();
+        _random = random ?? Random.secure();
 
   @override
-  Stream<GoogleSignInUserData?> get userDataEvents {
-    return _userDataEvents.stream;
+  Stream<AuthenticationEvent> get authenticationEvents {
+    return _authenticationEvents.stream;
   }
 
   /// Sets the client secret that is used in token requests.
@@ -170,182 +155,13 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
   }
 
   @override
-  Future<void> clearAuthCache({
-    required String token,
-  }) async {
-    final tokenData = await _tokenDataStore.get();
-
-    await _tokenDataStore.set(
-      GoogleSignInDesktopTokenData(
-        idToken: tokenData?.idToken,
-        accessToken: null,
-        refreshToken: tokenData?.refreshToken,
-        expiration: null,
-        scopes: null,
-      ),
-    );
-  }
-
-  @override
-  Future<void> disconnect() async {
-    final tokenData = await _tokenDataStore.get();
-
-    final token = tokenData?.refreshToken ?? tokenData?.accessToken;
-    if (token != null) {
-      await _client.post(
-        Uri.https(
-          'oauth2.googleapis.com',
-          '/revoke',
-          {
-            'token': token,
-          },
-        ),
-      );
-    }
-
-    await _tokenDataStore.set(null);
-
-    _userData = null;
-
-    _userDataEvents.add(_userData);
-  }
-
-  @override
-  Future<GoogleSignInDesktopTokenData> getTokens({
-    required String email,
-    bool? shouldRecoverAuth,
-  }) async {
-    var tokenData = await _tokenDataStore.get();
-
-    if (tokenData == null) {
-      throw PlatformException(
-        code: _kSignInRequiredError,
-      );
-    }
-
-    if (tokenData.isExpired() == false) {
-      return tokenData;
-    }
-
-    final refreshToken = tokenData.refreshToken;
-    if (refreshToken != null) {
-      tokenData = _createTokenData(
-        await _client.post(
-          Uri.https(
-            'oauth2.googleapis.com',
-            '/token',
-          ),
-          body: {
-            'client_id': _clientId,
-            'client_secret': _clientSecret,
-            'refresh_token': refreshToken,
-            'grant_type': 'refresh_token',
-          },
-        ),
-        idToken: tokenData.idToken,
-        refreshToken: refreshToken,
-      );
-
-      await _tokenDataStore.set(tokenData);
-
-      return tokenData;
-    }
-
-    if (shouldRecoverAuth == true) {
-      try {
-        return (await _signIn()).$1;
-      } catch (e) {
-        throw PlatformException(
-          code: _kFailedToRecoverAuthError,
-          message: '$e',
-        );
-      }
-    }
-
-    throw PlatformException(
-      code: _kUserRecoverableAuthError,
-    );
-  }
-
-  @override
-  Future<void> init({
-    List<String> scopes = const <String>[],
-    SignInOption signInOption = SignInOption.standard,
-    String? hostedDomain,
-    String? clientId,
-  }) async {
-    _clientId = ArgumentError.checkNotNull(clientId, 'clientId');
-    _scopes = scopes;
-  }
-
-  @override
-  Future<bool> isSignedIn() async {
-    return _userData != null;
-  }
-
-  @override
-  Future<bool> requestScopes(
-    List<String> scopes,
+  Future<AuthenticationResults?>? attemptLightweightAuthentication(
+    AttemptLightweightAuthenticationParameters params,
   ) async {
-    if (scopes.isEmpty) {
-      throw ArgumentError.value(
-        scopes,
-        'scopes',
-        'Scopes must not be empty',
-      );
-    }
-
-    // Keep track of the previous scopes in case we need to revert
-    final previousScopes = _scopes;
-
     try {
-      // Merge the current scopes with the requested scopes
-      _scopes = {..._scopes, ...scopes}.toList();
-
-      var tokenData = await _tokenDataStore.get();
-      if (tokenData == null) {
-        tokenData = (await _signIn()).$1;
-
-        // It's a fresh sign in, so directly return if the requested scopes are granted
-        return _hasGrantedAllScopes(tokenData, scopes);
-      }
-
-      if (_hasGrantedAllScopes(tokenData, scopes)) {
-        return true;
-      }
-
-      // The requested scopes are not granted, so try to sign in with the new scopes
-      tokenData = (await _signIn()).$1;
-
-      return _hasGrantedAllScopes(tokenData, scopes);
-    } catch (_) {
-      // If something goes wrong, revert the scopes back to the previous state
-      _scopes = previousScopes;
-
-      rethrow;
-    }
-  }
-
-  @override
-  Future<GoogleSignInUserData?> signIn() async {
-    try {
-      return (await _signIn()).$2;
-    } catch (e) {
-      throw PlatformException(
-        code: _kSignInFailedError,
-        message: '$e',
-      );
-    }
-  }
-
-  @override
-  Future<GoogleSignInUserData?> signInSilently() async {
-    try {
-      var tokenData = await _tokenDataStore.get();
-      if (tokenData != null) {
+      if (await _tokenDataStore.get() case var tokenData?) {
         if (tokenData.isExpired() != false) {
-          final refreshToken = tokenData.refreshToken;
-          if (refreshToken != null) {
+          if (tokenData.refreshToken case final refreshToken?) {
             tokenData = _createTokenData(
               await _client.post(
                 Uri.https(
@@ -368,70 +184,224 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
         }
 
         if (tokenData.isExpired() == false) {
-          _userData = _createUserData(
+          final userData = _createUserData(
             await _client.post(
               Uri.https(
                 'openidconnect.googleapis.com',
                 '/v1/userinfo',
               ),
               headers: {
-                'authorization': 'Bearer ${tokenData.accessToken!}',
+                'authorization': 'Bearer ${tokenData.accessToken}',
               },
             ),
-            idToken: tokenData.idToken,
           );
 
-          _userDataEvents.add(_userData);
+          _authenticationEvents.add(
+            AuthenticationEventSignIn(
+              user: userData,
+              authenticationTokens: AuthenticationTokenData(
+                idToken: null,
+              ),
+            ),
+          );
 
-          return _userData;
+          return AuthenticationResults(
+            user: userData,
+            authenticationTokens: AuthenticationTokenData(
+              idToken: null,
+            ),
+          );
         }
       }
+
+      return null;
     } catch (e) {
-      throw PlatformException(
-        code: _kSignInFailedError,
-        message: '$e',
+      throw GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: e.toString(),
       );
     }
+  }
 
-    throw PlatformException(
-      code: _kSignInRequiredError,
+  @override
+  Future<AuthenticationResults> authenticate(
+    AuthenticateParameters params,
+  ) async {
+    try {
+      final (tokenData, userData) = await _signIn(
+        scopes: params.scopeHint,
+      );
+
+      await _tokenDataStore.set(tokenData);
+
+      _authenticationEvents.add(
+        AuthenticationEventSignIn(
+          user: userData,
+          authenticationTokens: AuthenticationTokenData(
+            idToken: tokenData.idToken,
+          ),
+        ),
+      );
+
+      return AuthenticationResults(
+        user: userData,
+        authenticationTokens: AuthenticationTokenData(
+          idToken: tokenData.idToken,
+        ),
+      );
+    } catch (e) {
+      throw GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: e.toString(),
+      );
+    }
+  }
+
+  @override
+  bool authorizationRequiresUserInteraction() {
+    return false;
+  }
+
+  @override
+  Future<ClientAuthorizationTokenData?> clientAuthorizationTokensForScopes(
+    ClientAuthorizationTokensForScopesParameters params,
+  ) async {
+    try {
+      if (await _tokenDataStore.get() case final tokenData?) {
+        if (tokenData.isExpired() == false) {
+          if (_hasGrantedAllScopes(tokenData, params.request.scopes)) {
+            return ClientAuthorizationTokenData(
+              accessToken: tokenData.accessToken,
+            );
+          }
+        }
+      }
+
+      if (params.request.promptIfUnauthorized == false) {
+        return null;
+      }
+
+      final (tokenData, userData) = await _signIn(
+        scopes: params.request.scopes,
+      );
+
+      await _tokenDataStore.set(tokenData);
+
+      _authenticationEvents.add(
+        AuthenticationEventSignIn(
+          user: userData,
+          authenticationTokens: AuthenticationTokenData(
+            idToken: tokenData.idToken,
+          ),
+        ),
+      );
+
+      return ClientAuthorizationTokenData(
+        accessToken: tokenData.accessToken,
+      );
+    } catch (e) {
+      throw GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: e.toString(),
+      );
+    }
+  }
+
+  @override
+  Future<void> disconnect(
+    DisconnectParams params,
+  ) async {
+    try {
+      final tokenData = await _tokenDataStore.get();
+
+      if (tokenData?.refreshToken ?? tokenData?.accessToken case final token?) {
+        await _client.post(
+          Uri.https(
+            'oauth2.googleapis.com',
+            '/revoke',
+            {
+              'token': token,
+            },
+          ),
+        );
+      }
+
+      await _tokenDataStore.set(null);
+
+      _authenticationEvents.add(
+        AuthenticationEventSignOut(),
+      );
+    } catch (e) {
+      throw GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: e.toString(),
+      );
+    }
+  }
+
+  @override
+  Future<void> init(
+    InitParameters params,
+  ) async {
+    _clientId = ArgumentError.checkNotNull(params.clientId, 'clientId');
+  }
+
+  @override
+  Future<ServerAuthorizationTokenData?> serverAuthorizationTokensForScopes(
+    ServerAuthorizationTokensForScopesParameters params,
+  ) async {
+    throw UnsupportedError(
+      'serverAuthorizationTokensForScopes is not supported by google_sign_in_desktop.',
     );
   }
 
   @override
-  Future<void> signOut() async {
-    await _tokenDataStore.set(null);
+  Future<void> signOut(
+    SignOutParams params,
+  ) async {
+    try {
+      await _tokenDataStore.set(null);
 
-    _userData = null;
+      _authenticationEvents.add(
+        AuthenticationEventSignOut(),
+      );
+    } catch (e) {
+      throw GoogleSignInException(
+        code: GoogleSignInExceptionCode.unknownError,
+        description: e.toString(),
+      );
+    }
+  }
 
-    _userDataEvents.add(_userData);
+  @override
+  bool supportsAuthenticate() {
+    return true;
   }
 
   bool _hasGrantedAllScopes(
     GoogleSignInDesktopTokenData tokenData,
     List<String> scopes,
   ) {
-    final tokenScopes = tokenData.scopes;
-    if (tokenScopes == null) {
-      return false;
+    if (tokenData.scopes case final tokenScopes?) {
+      return scopes.every(
+        (scope) {
+          return tokenScopes.any((tokenScope) {
+            return scope == tokenScope ||
+                (scope == _kOpenidEmailScope &&
+                    tokenScope == _kUserinfoEmailScope) ||
+                (scope == _kOpenidProfileScope &&
+                    tokenScope == _kUserinfoProfileScope);
+          });
+        },
+      );
     }
 
-    return scopes.every(
-      (scope) {
-        return tokenScopes.any((tokenScope) {
-          return scope == tokenScope ||
-              // The scope name is different when requesting it than when it is granted
-              (scope == _kOpenidEmailScope &&
-                  tokenScope == _kUserinfoEmailScope) ||
-              (scope == _kOpenidProfileScope &&
-                  tokenScope == _kUserinfoProfileScope);
-        });
-      },
-    );
+    return false;
   }
 
-  Future<_Tuple2<GoogleSignInDesktopTokenData, GoogleSignInUserData>>
-      _signIn() async {
+  Future<(GoogleSignInDesktopTokenData, GoogleSignInUserData)> _signIn({
+    List<String> scopes = const [],
+  }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
 
     try {
@@ -456,8 +426,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
             'redirect_uri': redirectUri,
             'response_type': 'code',
             'scope': {
-              ..._scopes,
-              // Always include open id scopes
+              ...scopes,
               _kOpenidOpenidScope,
               _kOpenidProfileScope,
               _kOpenidEmailScope,
@@ -508,22 +477,17 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
           ),
         );
 
-        await _tokenDataStore.set(tokenData);
-
-        final userData = _userData = _createUserData(
+        final userData = _createUserData(
           await _client.post(
             Uri.https(
               'openidconnect.googleapis.com',
               '/v1/userinfo',
             ),
             headers: {
-              'authorization': 'Bearer ${tokenData.accessToken!}',
+              'authorization': 'Bearer ${tokenData.accessToken}',
             },
           ),
-          idToken: tokenData.idToken,
         );
-
-        _userDataEvents.add(userData);
 
         request.response
           ..statusCode = 200
@@ -543,7 +507,7 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
 
         await request.response.close();
 
-        return _Tuple2(tokenData, userData);
+        return (tokenData, userData);
       } catch (e) {
         request.response.statusCode = 500;
 
@@ -555,11 +519,4 @@ class GoogleSignInDesktop extends GoogleSignInPlatform {
       await server.close();
     }
   }
-}
-
-class _Tuple2<T1, T2> {
-  final T1 $1;
-  final T2 $2;
-
-  const _Tuple2(this.$1, this.$2);
 }

@@ -10,9 +10,9 @@ The desktop implementation uses the [Authorization Code Flow with Proof Key for 
 
    ```yaml
    dependencies:
-     google_sign_in: ^6.0.0
+     google_sign_in: ^7.0.0
      google_sign_in_desktop: { git: https://github.com/tnc1997/flutter-google-sign-in-desktop.git }
-     google_sign_in_platform_interface: ^2.0.0
+     google_sign_in_platform_interface: ^3.0.0
    ```
 2. Implement `GoogleSignInDesktopStore<GoogleSignInDesktopTokenData>` to store tokens between sessions.
 
@@ -31,26 +31,39 @@ The desktop implementation uses the [Authorization Code Flow with Proof Key for 
    > Your application should store both tokens in a secure, long-lived location that is accessible between different invocations of your application. The refresh token enables your application to obtain a new access token if the one that you have expires. As such, if your application loses the refresh token, the user will need to repeat the OAuth 2.0 consent flow so that your application can obtain a new refresh token.
 
 3. Follow the instructions [here](https://developers.google.com/identity/protocols/oauth2/native-app) to create a desktop OAuth client.
-4. Update `main.dart` to initialize the plugin and set the required instance fields.
+4. Update `main.dart` to set the required instance fields and initialize the plugin.
 
    ```dart
-   const scopes = <String>[
-     'email',
+   const clientId = 'YOUR_GOOGLE_SIGN_IN_OAUTH_CLIENT_ID.apps.googleusercontent.com';
+
+   const scopes = [
      'https://www.googleapis.com/auth/contacts.readonly',
    ];
+   ```
 
-   final _googleSignIn = GoogleSignIn(
-     clientId: 'YOUR_GOOGLE_SIGN_IN_OAUTH_CLIENT_ID.apps.googleusercontent.com',
-     scopes: scopes,
-   );
-
+   ```dart
    void main() {
      if (GoogleSignInPlatform.instance case GoogleSignInDesktop instance) {
        instance.clientSecret = 'YOUR_GOOGLE_SIGN_IN_OAUTH_CLIENT_SECRET';
        instance.tokenDataStore = const GoogleSignInDesktopTokenDataStore();
      }
-   
+
      runApp(const MyApp());
+   }
+   ```
+
+   ```dart
+   @override
+   void initState() {
+     super.initState();
+
+     unawaited(
+       GoogleSignIn.instance.initialize(clientId: clientId).then(
+         (_) {
+           GoogleSignIn.instance.attemptLightweightAuthentication();
+         },
+       ),
+     );
    }
    ```
 
@@ -60,20 +73,20 @@ The desktop implementation uses the [Authorization Code Flow with Proof Key for 
 
 ## Compatibility
 
-The desktop implementation implements the following methods:
+The desktop implementation supports the following methods:
 
-| Method            |    |
-|-------------------|----|
-| `canAccessScopes` | ❌  |
-| `clearAuthCache`  | ✔️ |
-| `disconnect`      | ✔️ |
-| `getTokens`       | ✔️ |
-| `init`            | ✔️ |
-| `isSignedIn`      | ✔️ |
-| `requestScopes`   | ✔️ |
-| `signIn`          | ✔️ |
-| `signInSilently`  | ✔️ |
-| `signOut`         | ✔️ |
+| Method                                 |    |
+|----------------------------------------|----|
+| `attemptLightweightAuthentication`     | ✔️ |
+| `authenticate`                         | ✔️ |
+| `authorizationRequiresUserInteraction` | ✔️ |
+| `clientAuthorizationTokensForScopes`   | ✔️ |
+| `disconnect`                           | ✔️ |
+| `init`                                 | ✔️ |
+| `serverAuthorizationTokensForScopes`   | ❌  |
+| `signOut`                              | ✔️ |
+| `supportsAuthenticate`                 | ✔️ |
+| `signOut`                              | ✔️ |
 
 ## Dependencies
 

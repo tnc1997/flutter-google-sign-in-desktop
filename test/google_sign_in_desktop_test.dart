@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in_desktop/google_sign_in_desktop.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
@@ -68,14 +67,14 @@ void main() {
       );
 
       group(
-        'userDataEvents',
+        'authenticationEvents',
         () {
           test(
-            'should return the user data events stream',
+            'should return the authentication events stream',
             () {
               expect(
-                GoogleSignInDesktop().userDataEvents,
-                isA<Stream<GoogleSignInUserData?>>(),
+                GoogleSignInDesktop().authenticationEvents,
+                isA<Stream<AuthenticationEvent>>(),
               );
             },
           );
@@ -121,7 +120,6 @@ void main() {
                   id: 'TestId',
                   displayName: 'TestDisplayName',
                   photoUrl: 'TestPhotoUrl',
-                  idToken: idToken ?? 'TestIdToken',
                 );
               };
 
@@ -155,8 +153,9 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               late Response response;
@@ -165,7 +164,15 @@ void main() {
                 await Future.wait(
                   [
                     (() async {
-                      await plugin.signIn();
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
                     })(),
                     (() async {
                       final url = await authorizationCompleter.future.timeout(
@@ -207,8 +214,9 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               late Response response;
@@ -217,7 +225,15 @@ void main() {
                 await Future.wait(
                   [
                     (() async {
-                      await plugin.signIn();
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
                     })(),
                     (() async {
                       final url = await authorizationCompleter.future.timeout(
@@ -275,228 +291,17 @@ void main() {
       );
 
       group(
-        'clearAuthCache',
-        () {
-          late GoogleSignInDesktop plugin;
-
-          setUp(
-            () {
-              plugin = GoogleSignInDesktop();
-            },
-          );
-
-          test(
-            'should throw an error if the token data store has not been set',
-            () {
-              expect(
-                () async {
-                  await plugin.clearAuthCache(
-                    token: '',
-                  );
-                },
-                throwsA(
-                  isA<Error>(),
-                ),
-              );
-            },
-          );
-
-          test(
-            'should set the access token to null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                );
-
-              await plugin.clearAuthCache(
-                token: '',
-              );
-
-              expect(
-                tokenDataStore._value?.accessToken,
-                null,
-              );
-            },
-          );
-
-          test(
-            'should set the expiration to null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = GoogleSignInDesktopTokenData(
-                  expiration: DateTime.now(),
-                );
-
-              await plugin.clearAuthCache(
-                token: '',
-              );
-
-              expect(
-                tokenDataStore._value?.expiration,
-                null,
-              );
-            },
-          );
-
-          test(
-            'should set the scopes to null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  scopes: ['openid profile email'],
-                );
-
-              await plugin.clearAuthCache(
-                token: '',
-              );
-
-              expect(
-                tokenDataStore._value?.scopes,
-                null,
-              );
-            },
-          );
-        },
-      );
-
-      group(
-        'disconnect',
-        () {
-          late GoogleSignInDesktop plugin;
-
-          setUp(
-            () {
-              plugin = GoogleSignInDesktop(
-                client: client,
-              );
-            },
-          );
-
-          test(
-            'should throw an error if the token data store has not been set',
-            () {
-              expect(
-                () async {
-                  await plugin.disconnect();
-                },
-                throwsA(
-                  isA<Error>(),
-                ),
-              );
-            },
-          );
-
-          test(
-            'should revoke the refresh token if the refresh token is not null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  refreshToken: 'TestRefreshToken',
-                );
-
-              await plugin.disconnect();
-
-              final request = await revocationCompleter.future.timeout(
-                const Duration(
-                  seconds: 10,
-                ),
-              );
-
-              expect(
-                request.url.queryParameters,
-                containsPair(
-                  'token',
-                  'TestRefreshToken',
-                ),
-              );
-            },
-          );
-
-          test(
-            'should revoke the access token if the refresh token is null and the access token is not null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: null,
-                );
-
-              await plugin.disconnect();
-
-              final request = await revocationCompleter.future.timeout(
-                const Duration(
-                  seconds: 10,
-                ),
-              );
-
-              expect(
-                request.url.queryParameters,
-                containsPair(
-                  'token',
-                  'TestAccessToken',
-                ),
-              );
-            },
-          );
-
-          test(
-            'should set the stored token data to null',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData();
-
-              await plugin.disconnect();
-
-              expect(
-                tokenDataStore._value,
-                null,
-              );
-            },
-          );
-
-          test(
-            'should add an event to the user data events stream',
-            () async {
-              plugin.tokenDataStore = tokenDataStore;
-
-              final userDataCompleter = Completer<GoogleSignInUserData?>();
-
-              final subscription = plugin.userDataEvents.listen(
-                (userData) {
-                  userDataCompleter.complete(userData);
-                },
-              );
-
-              await plugin.disconnect();
-
-              expect(
-                await userDataCompleter.future.timeout(
-                  const Duration(
-                    seconds: 10,
-                  ),
-                ),
-                null,
-              );
-
-              await subscription.cancel();
-            },
-          );
-        },
-      );
-
-      group(
-        'getTokens',
+        'attemptLightweightAuthentication',
         () {
           late GoogleSignInDesktopTokenData Function(
             Response response, {
             String? idToken,
             String? refreshToken,
           }) createTokenData;
-          late Future<void> Function(
-            Uri url,
-          ) launchUrl;
+          late GoogleSignInUserData Function(
+            Response response, {
+            String? idToken,
+          }) createUserData;
           late GoogleSignInDesktop plugin;
 
           setUp(
@@ -512,90 +317,133 @@ void main() {
                 );
               };
 
+              createUserData = (
+                response, {
+                idToken,
+              }) {
+                return GoogleSignInUserData(
+                  email: 'TestEmail',
+                  id: 'TestId',
+                  displayName: 'TestDisplayName',
+                  photoUrl: 'TestPhotoUrl',
+                );
+              };
+
               plugin = GoogleSignInDesktop(
                 client: client,
-                createCodeChallenge: createCodeChallenge,
-                createCodeVerifier: createCodeVerifier,
-                createState: createState,
                 createTokenData: createTokenData,
-                launchUrl: (url) async {
-                  return await launchUrl(url);
-                },
+                createUserData: createUserData,
               );
             },
           );
 
           test(
-            'should throw an error if the token data store has not been set',
-            () {
+            'should add an event to the authentication events stream if the token data is not null and the access token is not expired',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  isExpired: false,
+                );
+
+              final authenticationEventCompleter =
+                  Completer<AuthenticationEvent>();
+
+              final subscription = plugin.authenticationEvents.listen(
+                (authenticationEvent) {
+                  authenticationEventCompleter.complete(authenticationEvent);
+                },
+              );
+
+              await plugin.attemptLightweightAuthentication(
+                AttemptLightweightAuthenticationParameters(),
+              );
+
               expect(
-                () async {
-                  await plugin.getTokens(
-                    email: '',
-                  );
-                },
-                throwsA(
-                  isA<Error>(),
+                await authenticationEventCompleter.future.timeout(
+                  const Duration(
+                    seconds: 10,
+                  ),
                 ),
+                isA<AuthenticationEventSignIn>(),
+              );
+
+              await subscription.cancel();
+            },
+          );
+
+          test(
+            'should return authentication results if the token data is not null and the access token is not expired',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  isExpired: false,
+                );
+
+              expect(
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
+                ),
+                isNotNull,
               );
             },
           );
 
           test(
-            'should throw an exception if the token data is null',
-            () {
+            'should return null if the token data is not null and the access token is expired and the refresh token is null',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: null,
+                  isExpired: true,
+                );
+
+              expect(
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
+                ),
+                null,
+              );
+            },
+          );
+
+          test(
+            'should return null if the token data is null',
+            () async {
               plugin.tokenDataStore = tokenDataStore.._value = null;
 
               expect(
-                () async {
-                  await plugin.getTokens(
-                    email: '',
-                  );
-                },
-                throwsA(
-                  isA<PlatformException>(),
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
                 ),
+                null,
               );
             },
           );
 
           test(
-            'should return the token data if the access token is not expired',
-            () async {
-              final tokenData = _GoogleSignInDesktopTokenData(
-                isExpired: false,
-              );
-
-              plugin.tokenDataStore = tokenDataStore.._value = tokenData;
-
-              expect(
-                await plugin.getTokens(
-                  email: '',
-                ),
-                tokenData,
-              );
-            },
-          );
-
-          test(
-            'should send a token request if the access token is expired and the refresh token is not null',
+            'should send a token request if the token data is not null and the access token is expired and the refresh token is not null',
             () async {
               plugin.clientSecret = 'TestClientSecret';
 
               plugin.tokenDataStore = tokenDataStore
                 .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: '',
                   refreshToken: 'TestRefreshToken',
                   isExpired: true,
                 );
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               try {
-                await plugin.getTokens(
-                  email: '',
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
                 );
               } catch (e) {
                 // ignored because we are testing the requesting of the token
@@ -657,635 +505,103 @@ void main() {
           );
 
           test(
-            'should store the token data if the access token is refreshed',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  refreshToken: 'TestRefreshToken',
-                  isExpired: true,
-                );
-
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              final tokenData = await plugin.getTokens(
-                email: '',
-              );
-
-              expect(
-                tokenDataStore._value,
-                tokenData,
-              );
-            },
-          );
-
-          test(
-            'should return the token data if the access token is refreshed',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  refreshToken: 'TestRefreshToken',
-                  isExpired: true,
-                );
-
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              final tokenData = await plugin.getTokens(
-                email: '',
-              );
-
-              expect(
-                tokenData.accessToken,
-                'TestAccessToken',
-              );
-
-              expect(
-                tokenData.refreshToken,
-                'TestRefreshToken',
-              );
-            },
-          );
-
-          test(
-            'should launch an authorization url if the access token is expired and the refresh token is null and should recover auth is true',
+            'should send a userinfo request if the token data is not null and the access token is not expired',
             () async {
               plugin.tokenDataStore = tokenDataStore
                 .._value = _GoogleSignInDesktopTokenData(
-                  refreshToken: null,
-                  isExpired: true,
+                  accessToken: 'TestAccessToken',
+                  isExpired: false,
                 );
 
-              final authorizationCompleter = Completer<Uri>();
-
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
-
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
-
-              late Uri url;
 
               try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.getTokens(
-                        email: '',
-                        shouldRecoverAuth: true,
-                      );
-                    })(),
-                    (() async {
-                      url = await authorizationCompleter.future.timeout(
-                        const Duration(
-                          seconds: 10,
-                        ),
-                      );
-
-                      await get(
-                        Uri.parse(
-                          url.queryParameters['redirect_uri']!,
-                        ),
-                      );
-                    })(),
-                  ],
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
                 );
               } catch (e) {
-                // ignored because we are testing the launching of the authorization url
+                // ignored because we are testing the requesting of the userinfo
               }
 
+              final request = await userinfoCompleter.future.timeout(
+                const Duration(
+                  seconds: 10,
+                ),
+              );
+
               expect(
-                url.scheme,
+                request.url.scheme,
                 'https',
               );
 
               expect(
-                url.host,
-                'accounts.google.com',
+                request.url.host,
+                'openidconnect.googleapis.com',
               );
 
               expect(
-                url.path,
-                '/o/oauth2/auth',
+                request.url.path,
+                '/v1/userinfo',
               );
 
               expect(
-                url.queryParameters,
+                request.headers,
                 containsPair(
-                  'client_id',
-                  'TestClientId',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'redirect_uri',
-                  matches(r'http\:\/\/127\.0\.0\.1\:\d+'),
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'response_type',
-                  'code',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'scope',
-                  'openid profile email',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'code_challenge',
-                  'TestCodeChallenge',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'code_challenge_method',
-                  'S256',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'state',
-                  'TestState',
-                ),
-              );
-
-              expect(
-                url.queryParameters,
-                containsPair(
-                  'access_type',
-                  'offline',
+                  'authorization',
+                  'Bearer TestAccessToken',
                 ),
               );
             },
           );
 
           test(
-            'should throw an exception if the access token is expired and the refresh token is null and should recover auth is false',
-            () {
+            'should store the token data if the token data is not null and the access token is expired and the refresh token is not null',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
               plugin.tokenDataStore = tokenDataStore
                 .._value = _GoogleSignInDesktopTokenData(
-                  refreshToken: null,
+                  accessToken: '',
+                  refreshToken: 'TestRefreshToken',
                   isExpired: true,
                 );
 
-              expect(
-                () async {
-                  await plugin.getTokens(
-                    email: '',
-                    shouldRecoverAuth: false,
-                  );
-                },
-                throwsA(
-                  isA<PlatformException>(),
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
                 ),
-              );
-            },
-          );
-        },
-      );
-
-      group(
-        'isSignedIn',
-        () {
-          test(
-            'should return false if the user is not signed in',
-            () async {
-              expect(
-                await GoogleSignInDesktop().isSignedIn(),
-                false,
-              );
-            },
-          );
-        },
-      );
-
-      group(
-        'requestScopes',
-        () {
-          late GoogleSignInDesktopTokenData Function(
-            Response response, {
-            String? idToken,
-            String? refreshToken,
-          }) createTokenData;
-          late GoogleSignInUserData Function(
-            Response response, {
-            String? idToken,
-          }) createUserData;
-          late Future<void> Function(
-            Uri url,
-          ) launchUrl;
-          late GoogleSignInDesktop plugin;
-
-          setUp(
-            () {
-              createUserData = (
-                response, {
-                idToken,
-              }) {
-                return GoogleSignInUserData(
-                  email: 'TestEmail',
-                  id: 'TestId',
-                  displayName: 'TestDisplayName',
-                  photoUrl: 'TestPhotoUrl',
-                  idToken: idToken ?? 'TestIdToken',
-                );
-              };
-
-              plugin = GoogleSignInDesktop(
-                client: client,
-                createCodeChallenge: createCodeChallenge,
-                createCodeVerifier: createCodeVerifier,
-                createState: createState,
-                createTokenData: (
-                  response, {
-                  idToken,
-                  refreshToken,
-                }) {
-                  return createTokenData(
-                    response,
-                    idToken: idToken,
-                    refreshToken: refreshToken,
-                  );
-                },
-                createUserData: createUserData,
-                launchUrl: (url) async {
-                  return await launchUrl(url);
-                },
-              );
-            },
-          );
-
-          test(
-            'should return false if the token data is null and the scopes are not granted',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore.._value = null;
-
-              createTokenData = (
-                response, {
-                idToken,
-                refreshToken,
-              }) {
-                return _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: 'TestRefreshToken',
-                  scopes: [],
-                );
-              };
-
-              final authorizationCompleter = Completer<Uri>();
-
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
-              );
-
-              late bool actual;
-
-              await Future.wait(
-                [
-                  (() async {
-                    actual = await plugin.requestScopes(['openid']);
-                  })(),
-                  (() async {
-                    final url = await authorizationCompleter.future.timeout(
-                      const Duration(
-                        seconds: 10,
-                      ),
-                    );
-
-                    await get(
-                      Uri.parse(
-                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
-                      ),
-                    );
-                  })(),
-                ],
-              );
-
-              expect(
-                actual,
-                isFalse,
-              );
-            },
-          );
-
-          test(
-            'should return true if the token data is not null and the scopes have been granted',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  scopes: ['openid'],
-                );
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
-              );
-
-              expect(
-                await plugin.requestScopes(['openid']),
-                isTrue,
-              );
-            },
-          );
-
-          test(
-            'should return true if the token data is not null and the scopes have been granted with different names',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  scopes: ['https://www.googleapis.com/auth/userinfo.profile'],
-                );
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
-              );
-
-              expect(
-                await plugin.requestScopes(['profile']),
-                isTrue,
-              );
-            },
-          );
-
-          test(
-            'should return true if the token data is null and the scopes are granted',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore.._value = null;
-
-              createTokenData = (
-                response, {
-                idToken,
-                refreshToken,
-              }) {
-                return _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: 'TestRefreshToken',
-                  scopes: ['openid'],
-                );
-              };
-
-              final authorizationCompleter = Completer<Uri>();
-
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
-              );
-
-              late bool actual;
-
-              await Future.wait(
-                [
-                  (() async {
-                    actual = await plugin.requestScopes(['openid']);
-                  })(),
-                  (() async {
-                    final url = await authorizationCompleter.future.timeout(
-                      const Duration(
-                        seconds: 10,
-                      ),
-                    );
-
-                    await get(
-                      Uri.parse(
-                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
-                      ),
-                    );
-                  })(),
-                ],
-              );
-
-              expect(
-                actual,
-                isTrue,
-              );
-            },
-          );
-
-          test(
-            'should return true if the token data is null and the scopes are granted with different names',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore.._value = null;
-
-              createTokenData = (
-                response, {
-                idToken,
-                refreshToken,
-              }) {
-                return _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: 'TestRefreshToken',
-                  scopes: ['https://www.googleapis.com/auth/userinfo.profile'],
-                );
-              };
-
-              final authorizationCompleter = Completer<Uri>();
-
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
-              );
-
-              late bool actual;
-
-              await Future.wait(
-                [
-                  (() async {
-                    actual = await plugin.requestScopes(['profile']);
-                  })(),
-                  (() async {
-                    final url = await authorizationCompleter.future.timeout(
-                      const Duration(
-                        seconds: 10,
-                      ),
-                    );
-
-                    await get(
-                      Uri.parse(
-                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
-                      ),
-                    );
-                  })(),
-                ],
-              );
-
-              expect(
-                actual,
-                isTrue,
-              );
-            },
-          );
-
-          test(
-            'should revert the scopes if an exception is thrown',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore.._value = null;
-
-              createTokenData = (
-                response, {
-                idToken,
-                refreshToken,
-              }) {
-                return _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: 'TestRefreshToken',
-                  scopes: [],
-                );
-              };
-
-              final authorizationController = StreamController<Uri>.broadcast();
-
-              launchUrl = (url) async {
-                authorizationController.add(url);
-              };
-
-              await plugin.init(
-                scopes: [],
-                clientId: 'TestClientId',
               );
 
               try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.requestScopes(['TestScope1']);
-                    })(),
-                    (() async {
-                      final url =
-                          await authorizationController.stream.first.timeout(
-                        const Duration(
-                          seconds: 10,
-                        ),
-                      );
-
-                      await get(
-                        Uri.parse(
-                          url.queryParameters['redirect_uri']!,
-                        ),
-                      );
-                    })(),
-                  ],
+                await plugin.attemptLightweightAuthentication(
+                  AttemptLightweightAuthenticationParameters(),
                 );
               } catch (e) {
-                // ignored because we are testing that the scopes are reverted
-              }
-
-              late Uri url;
-
-              try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.requestScopes(['TestScope2']);
-                    })(),
-                    (() async {
-                      url = await authorizationController.stream.first.timeout(
-                        const Duration(
-                          seconds: 10,
-                        ),
-                      );
-
-                      await get(
-                        Uri.parse(
-                          url.queryParameters['redirect_uri']!,
-                        ),
-                      );
-                    })(),
-                  ],
-                );
-              } catch (e) {
-                // ignored because we are testing that the scopes are reverted
+                // ignored because we are testing the storing of the token data
               }
 
               expect(
-                url.queryParameters['scope'],
-                isNot(
-                  contains(
-                    'TestScope1',
-                  ),
-                ),
-              );
-
-              expect(
-                url.queryParameters['scope'],
-                contains(
-                  'TestScope2',
-                ),
+                tokenDataStore._value?.accessToken,
+                'TestAccessToken',
               );
             },
           );
 
           test(
-            'should throw an argument error if the scopes is empty',
+            'should throw an exception if the token data store has not been set',
             () {
               expect(
                 () async {
-                  await plugin.requestScopes([]);
-                },
-                throwsArgumentError,
-              );
-            },
-          );
-
-          test(
-            'should throw an error if the token data store has not been set',
-            () {
-              expect(
-                () async {
-                  await plugin.requestScopes(['openid']);
+                  await plugin.attemptLightweightAuthentication(
+                    AttemptLightweightAuthenticationParameters(),
+                  );
                 },
                 throwsA(
-                  isA<Error>(),
+                  isA<GoogleSignInException>(),
                 ),
               );
             },
@@ -1294,7 +610,7 @@ void main() {
       );
 
       group(
-        'signIn',
+        'authenticate',
         () {
           late GoogleSignInDesktopTokenData Function(
             Response response, {
@@ -1332,7 +648,6 @@ void main() {
                   id: 'TestId',
                   displayName: 'TestDisplayName',
                   photoUrl: 'TestPhotoUrl',
-                  idToken: idToken ?? 'TestIdToken',
                 );
               };
 
@@ -1351,6 +666,76 @@ void main() {
           );
 
           test(
+            'should add an event to the user data events stream',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore;
+
+              final authenticationEventCompleter =
+                  Completer<AuthenticationEvent>();
+
+              final subscription = plugin.authenticationEvents.listen(
+                (authenticationEvent) {
+                  authenticationEventCompleter.complete(authenticationEvent);
+                },
+              );
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              await Future.wait(
+                [
+                  (() async {
+                    await plugin.authenticate(
+                      AuthenticateParameters(
+                        scopeHint: [
+                          'openid',
+                          'profile',
+                          'email',
+                        ],
+                      ),
+                    );
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
+
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
+
+              expect(
+                await authenticationEventCompleter.future.timeout(
+                  const Duration(
+                    seconds: 10,
+                  ),
+                ),
+                isA<AuthenticationEventSignIn>(),
+              );
+
+              await subscription.cancel();
+            },
+          );
+
+          test(
             'should launch an authorization url',
             () async {
               final authorizationCompleter = Completer<Uri>();
@@ -1360,8 +745,9 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               late Uri url;
@@ -1370,7 +756,15 @@ void main() {
                 await Future.wait(
                   [
                     (() async {
-                      await plugin.signIn();
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
                     })(),
                     (() async {
                       url = await authorizationCompleter.future.timeout(
@@ -1473,8 +867,12 @@ void main() {
           );
 
           test(
-            'should throw an exception if the server request error query parameter is not null',
+            'should respond to the server request with the status code 200',
             () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore;
+
               final authorizationCompleter = Completer<Uri>();
 
               launchUrl = (url) async {
@@ -1482,43 +880,60 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
-              expect(
-                () async {
-                  await Future.wait(
-                    [
-                      (() async {
-                        await plugin.signIn();
-                      })(),
-                      (() async {
-                        final url = await authorizationCompleter.future.timeout(
-                          const Duration(
-                            seconds: 10,
-                          ),
-                        );
+              late Response response;
 
-                        await get(
-                          Uri.parse(
-                            '${url.queryParameters['redirect_uri']!}?error=invalid_request',
-                          ),
-                        );
-                      })(),
-                    ],
-                  );
-                },
-                throwsA(
-                  isA<PlatformException>(),
-                ),
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
+                    })(),
+                    (() async {
+                      final url = await authorizationCompleter.future.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      response = await get(
+                        Uri.parse(
+                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing the responding to the server request
+              }
+
+              expect(
+                response.statusCode,
+                200,
               );
             },
           );
 
           test(
-            'should throw an exception if the server request state query parameter does not equal the state',
+            'should respond to the server request with the status code 500 if an exception was thrown',
             () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore;
+
               final authorizationCompleter = Completer<Uri>();
 
               launchUrl = (url) async {
@@ -1526,80 +941,49 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              expect(
-                () async {
-                  await Future.wait(
-                    [
-                      (() async {
-                        await plugin.signIn();
-                      })(),
-                      (() async {
-                        final url = await authorizationCompleter.future.timeout(
-                          const Duration(
-                            seconds: 10,
-                          ),
-                        );
-
-                        await get(
-                          Uri.parse(
-                            '${url.queryParameters['redirect_uri']!}?state=InvalidState',
-                          ),
-                        );
-                      })(),
-                    ],
-                  );
-                },
-                throwsA(
-                  isA<PlatformException>(),
+                InitParameters(
+                  clientId: 'TestClientId',
                 ),
               );
-            },
-          );
 
-          test(
-            'should throw an exception if the server request does not have an error query parameter and does not have a code query parameter',
-            () async {
-              final authorizationCompleter = Completer<Uri>();
+              late Response response;
 
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
+                    })(),
+                    (() async {
+                      final url = await authorizationCompleter.future.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
 
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
+                      response = await get(
+                        Uri.parse(
+                          '${url.queryParameters['redirect_uri']!}?error=invalid_request',
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing the responding to the server request
+              }
 
               expect(
-                () async {
-                  await Future.wait(
-                    [
-                      (() async {
-                        await plugin.signIn();
-                      })(),
-                      (() async {
-                        final url = await authorizationCompleter.future.timeout(
-                          const Duration(
-                            seconds: 10,
-                          ),
-                        );
-
-                        await get(
-                          Uri.parse(
-                            '${url.queryParameters['redirect_uri']!}?state=TestState',
-                          ),
-                        );
-                      })(),
-                    ],
-                  );
-                },
-                throwsA(
-                  isA<PlatformException>(),
-                ),
+                response.statusCode,
+                500,
               );
             },
           );
@@ -1618,8 +1002,9 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               late Uri url;
@@ -1628,7 +1013,15 @@ void main() {
                 await Future.wait(
                   [
                     (() async {
-                      await plugin.signIn();
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
                     })(),
                     (() async {
                       url = await authorizationCompleter.future.timeout(
@@ -1721,65 +1114,6 @@ void main() {
           );
 
           test(
-            'should store the token data',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  refreshToken: null,
-                );
-
-              final authorizationCompleter = Completer<Uri>();
-
-              launchUrl = (url) async {
-                authorizationCompleter.complete(url);
-              };
-
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.signIn();
-                    })(),
-                    (() async {
-                      final url = await authorizationCompleter.future.timeout(
-                        const Duration(
-                          seconds: 10,
-                        ),
-                      );
-
-                      await get(
-                        Uri.parse(
-                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
-                        ),
-                      );
-                    })(),
-                  ],
-                );
-              } catch (e) {
-                // ignored because we are testing the storing of the token data
-              }
-
-              expect(
-                tokenDataStore._value?.accessToken,
-                'TestAccessToken',
-              );
-
-              expect(
-                tokenDataStore._value?.refreshToken,
-                'TestRefreshToken',
-              );
-            },
-          );
-
-          test(
             'should send a userinfo request',
             () async {
               plugin.clientSecret = 'TestClientSecret';
@@ -1793,15 +1127,24 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
               try {
                 await Future.wait(
                   [
                     (() async {
-                      await plugin.signIn();
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
                     })(),
                     (() async {
                       final url = await authorizationCompleter.future.timeout(
@@ -1854,19 +1197,15 @@ void main() {
           );
 
           test(
-            'should add an event to the user data events stream',
+            'should store the token data',
             () async {
               plugin.clientSecret = 'TestClientSecret';
 
-              plugin.tokenDataStore = tokenDataStore;
-
-              final userDataCompleter = Completer<GoogleSignInUserData?>();
-
-              final subscription = plugin.userDataEvents.listen(
-                (userData) {
-                  userDataCompleter.complete(userData);
-                },
-              );
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: '',
+                  refreshToken: null,
+                );
 
               final authorizationCompleter = Completer<Uri>();
 
@@ -1875,16 +1214,540 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
-              late GoogleSignInUserData? userData;
+              try {
+                await Future.wait(
+                  [
+                    (() async {
+                      await plugin.authenticate(
+                        AuthenticateParameters(
+                          scopeHint: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                        ),
+                      );
+                    })(),
+                    (() async {
+                      final url = await authorizationCompleter.future.timeout(
+                        const Duration(
+                          seconds: 10,
+                        ),
+                      );
+
+                      await get(
+                        Uri.parse(
+                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                        ),
+                      );
+                    })(),
+                  ],
+                );
+              } catch (e) {
+                // ignored because we are testing the storing of the token data
+              }
+
+              expect(
+                tokenDataStore._value?.accessToken,
+                'TestAccessToken',
+              );
+
+              expect(
+                tokenDataStore._value?.refreshToken,
+                'TestRefreshToken',
+              );
+            },
+          );
+
+          test(
+            'should throw an exception if the server request does not have an error query parameter and does not have a code query parameter',
+            () async {
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                () async {
+                  await Future.wait(
+                    [
+                      (() async {
+                        await plugin.authenticate(
+                          AuthenticateParameters(
+                            scopeHint: [
+                              'openid',
+                              'profile',
+                              'email',
+                            ],
+                          ),
+                        );
+                      })(),
+                      (() async {
+                        final url = await authorizationCompleter.future.timeout(
+                          const Duration(
+                            seconds: 10,
+                          ),
+                        );
+
+                        await get(
+                          Uri.parse(
+                            '${url.queryParameters['redirect_uri']!}?state=TestState',
+                          ),
+                        );
+                      })(),
+                    ],
+                  );
+                },
+                throwsA(
+                  isA<GoogleSignInException>(),
+                ),
+              );
+            },
+          );
+
+          test(
+            'should throw an exception if the server request error query parameter is not null',
+            () async {
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                () async {
+                  await Future.wait(
+                    [
+                      (() async {
+                        await plugin.authenticate(
+                          AuthenticateParameters(
+                            scopeHint: [
+                              'openid',
+                              'profile',
+                              'email',
+                            ],
+                          ),
+                        );
+                      })(),
+                      (() async {
+                        final url = await authorizationCompleter.future.timeout(
+                          const Duration(
+                            seconds: 10,
+                          ),
+                        );
+
+                        await get(
+                          Uri.parse(
+                            '${url.queryParameters['redirect_uri']!}?error=invalid_request',
+                          ),
+                        );
+                      })(),
+                    ],
+                  );
+                },
+                throwsA(
+                  isA<GoogleSignInException>(),
+                ),
+              );
+            },
+          );
+
+          test(
+            'should throw an exception if the server request state query parameter does not equal the state',
+            () async {
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                () async {
+                  await Future.wait(
+                    [
+                      (() async {
+                        await plugin.authenticate(
+                          AuthenticateParameters(
+                            scopeHint: [
+                              'openid',
+                              'profile',
+                              'email',
+                            ],
+                          ),
+                        );
+                      })(),
+                      (() async {
+                        final url = await authorizationCompleter.future.timeout(
+                          const Duration(
+                            seconds: 10,
+                          ),
+                        );
+
+                        await get(
+                          Uri.parse(
+                            '${url.queryParameters['redirect_uri']!}?state=InvalidState',
+                          ),
+                        );
+                      })(),
+                    ],
+                  );
+                },
+                throwsA(
+                  isA<GoogleSignInException>(),
+                ),
+              );
+            },
+          );
+
+          test(
+            'should throw an exception if the token data store has not been set',
+            () {
+              expect(
+                () async {
+                  await plugin.authenticate(
+                    AuthenticateParameters(
+                      scopeHint: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                    ),
+                  );
+                },
+                throwsA(
+                  isA<GoogleSignInException>(),
+                ),
+              );
+            },
+          );
+        },
+      );
+
+      group(
+        'clientAuthorizationTokensForScopes',
+        () {
+          late GoogleSignInDesktopTokenData Function(
+            Response response, {
+            String? idToken,
+            String? refreshToken,
+          }) createTokenData;
+          late GoogleSignInUserData Function(
+            Response response, {
+            String? idToken,
+          }) createUserData;
+          late Future<void> Function(
+            Uri url,
+          ) launchUrl;
+          late GoogleSignInDesktop plugin;
+
+          setUp(
+            () {
+              createUserData = (
+                response, {
+                idToken,
+              }) {
+                return GoogleSignInUserData(
+                  email: 'TestEmail',
+                  id: 'TestId',
+                  displayName: 'TestDisplayName',
+                  photoUrl: 'TestPhotoUrl',
+                );
+              };
+
+              plugin = GoogleSignInDesktop(
+                client: client,
+                createCodeChallenge: createCodeChallenge,
+                createCodeVerifier: createCodeVerifier,
+                createState: createState,
+                createTokenData: (
+                  response, {
+                  idToken,
+                  refreshToken,
+                }) {
+                  return createTokenData(
+                    response,
+                    idToken: idToken,
+                    refreshToken: refreshToken,
+                  );
+                },
+                createUserData: createUserData,
+                launchUrl: (url) async {
+                  return await launchUrl(url);
+                },
+              );
+            },
+          );
+
+          test(
+            'should return null if the token data is null and prompt if unauthorized is false',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                await plugin.clientAuthorizationTokensForScopes(
+                  ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+                      scopes: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                      userId: null,
+                      email: null,
+                      promptIfUnauthorized: false,
+                    ),
+                  ),
+                ),
+                null,
+              );
+            },
+          );
+
+          test(
+            'should return null if the token data is not null and the access token is expired and prompt if unauthorized is false',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  isExpired: true,
+                );
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                await plugin.clientAuthorizationTokensForScopes(
+                  ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+                      scopes: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                      userId: null,
+                      email: null,
+                      promptIfUnauthorized: false,
+                    ),
+                  ),
+                ),
+                null,
+              );
+            },
+          );
+
+          test(
+            'should return null if the token data is not null and the access token is not expired and the scopes have not been granted and prompt if unauthorized is false',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  scopes: [],
+                  isExpired: false,
+                );
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                await plugin.clientAuthorizationTokensForScopes(
+                  ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+                      scopes: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                      userId: null,
+                      email: null,
+                      promptIfUnauthorized: false,
+                    ),
+                  ),
+                ),
+                null,
+              );
+            },
+          );
+
+          test(
+            'should return client authorization token data if the token data is not null and the access token is not expired and the scopes have been granted and prompt if unauthorized is false',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  scopes: [
+                    'openid',
+                    'profile',
+                    'email',
+                  ],
+                  isExpired: false,
+                );
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                await plugin.clientAuthorizationTokensForScopes(
+                  ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+                      scopes: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                      userId: null,
+                      email: null,
+                      promptIfUnauthorized: false,
+                    ),
+                  ),
+                ),
+                ClientAuthorizationTokenData(
+                  accessToken: 'TestAccessToken',
+                ),
+              );
+            },
+          );
+
+          test(
+            'should return client authorization token data if the token data is not null and the access token is not expired and the scopes have been granted with different names and prompt if unauthorized is false',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  scopes: [
+                    'openid',
+                    'https://www.googleapis.com/auth/userinfo.profile',
+                    'https://www.googleapis.com/auth/userinfo.email',
+                  ],
+                  isExpired: false,
+                );
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              expect(
+                await plugin.clientAuthorizationTokensForScopes(
+                  ClientAuthorizationTokensForScopesParameters(
+                    request: AuthorizationRequestDetails(
+                      scopes: [
+                        'openid',
+                        'profile',
+                        'email',
+                      ],
+                      userId: null,
+                      email: null,
+                      promptIfUnauthorized: false,
+                    ),
+                  ),
+                ),
+                ClientAuthorizationTokenData(
+                  accessToken: 'TestAccessToken',
+                ),
+              );
+            },
+          );
+
+          test(
+            'should return client authorization token data if the token data is null and prompt if unauthorized is true',
+            () async {
+              plugin.clientSecret = 'TestClientSecret';
+
+              plugin.tokenDataStore = tokenDataStore.._value = null;
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: [
+                    'openid',
+                    'profile',
+                    'email',
+                  ],
+                );
+              };
+
+              final authorizationCompleter = Completer<Uri>();
+
+              launchUrl = (url) async {
+                authorizationCompleter.complete(url);
+              };
+
+              await plugin.init(
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
+              );
+
+              late ClientAuthorizationTokenData? actual;
 
               await Future.wait(
                 [
                   (() async {
-                    userData = await plugin.signIn();
+                    actual = await plugin.clientAuthorizationTokensForScopes(
+                      ClientAuthorizationTokensForScopesParameters(
+                        request: AuthorizationRequestDetails(
+                          scopes: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                          userId: null,
+                          email: null,
+                          promptIfUnauthorized: true,
+                        ),
+                      ),
+                    );
                   })(),
                   (() async {
                     final url = await authorizationCompleter.future.timeout(
@@ -1903,24 +1766,40 @@ void main() {
               );
 
               expect(
-                await userDataCompleter.future.timeout(
-                  const Duration(
-                    seconds: 10,
-                  ),
+                actual,
+                ClientAuthorizationTokenData(
+                  accessToken: 'TestAccessToken',
                 ),
-                userData,
               );
-
-              await subscription.cancel();
             },
           );
 
           test(
-            'should respond to the server request with the status code 200',
+            'should return client authorization token data if the token data is not null and the access token is expired and prompt if unauthorized is true',
             () async {
               plugin.clientSecret = 'TestClientSecret';
 
-              plugin.tokenDataStore = tokenDataStore;
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: '',
+                  isExpired: true,
+                );
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: [
+                    'openid',
+                    'profile',
+                    'email',
+                  ],
+                );
+              };
 
               final authorizationCompleter = Completer<Uri>();
 
@@ -1929,50 +1808,83 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
-              late Response response;
+              late ClientAuthorizationTokenData? actual;
 
-              try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.signIn();
-                    })(),
-                    (() async {
-                      final url = await authorizationCompleter.future.timeout(
-                        const Duration(
-                          seconds: 10,
+              await Future.wait(
+                [
+                  (() async {
+                    actual = await plugin.clientAuthorizationTokensForScopes(
+                      ClientAuthorizationTokensForScopesParameters(
+                        request: AuthorizationRequestDetails(
+                          scopes: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                          userId: null,
+                          email: null,
+                          promptIfUnauthorized: true,
                         ),
-                      );
+                      ),
+                    );
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
 
-                      response = await get(
-                        Uri.parse(
-                          '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
-                        ),
-                      );
-                    })(),
-                  ],
-                );
-              } catch (e) {
-                // ignored because we are testing the responding to the server request
-              }
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
 
               expect(
-                response.statusCode,
-                200,
+                actual,
+                ClientAuthorizationTokenData(
+                  accessToken: 'TestAccessToken',
+                ),
               );
             },
           );
 
           test(
-            'should respond to the server request with the status code 500 if an exception was thrown',
+            'should return client authorization token data if the token data is not null and the access token is not expired and the scopes have not been granted and prompt if unauthorized is true',
             () async {
               plugin.clientSecret = 'TestClientSecret';
 
-              plugin.tokenDataStore = tokenDataStore;
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: '',
+                  scopes: [],
+                  isExpired: false,
+                );
+
+              createTokenData = (
+                response, {
+                idToken,
+                refreshToken,
+              }) {
+                return _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                  scopes: [
+                    'openid',
+                    'profile',
+                    'email',
+                  ],
+                );
+              };
 
               final authorizationCompleter = Completer<Uri>();
 
@@ -1981,53 +1893,78 @@ void main() {
               };
 
               await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
+                InitParameters(
+                  clientId: 'TestClientId',
+                ),
               );
 
-              late Response response;
+              late ClientAuthorizationTokenData? actual;
 
-              try {
-                await Future.wait(
-                  [
-                    (() async {
-                      await plugin.signIn();
-                    })(),
-                    (() async {
-                      final url = await authorizationCompleter.future.timeout(
-                        const Duration(
-                          seconds: 10,
+              await Future.wait(
+                [
+                  (() async {
+                    actual = await plugin.clientAuthorizationTokensForScopes(
+                      ClientAuthorizationTokensForScopesParameters(
+                        request: AuthorizationRequestDetails(
+                          scopes: [
+                            'openid',
+                            'profile',
+                            'email',
+                          ],
+                          userId: null,
+                          email: null,
+                          promptIfUnauthorized: true,
                         ),
-                      );
+                      ),
+                    );
+                  })(),
+                  (() async {
+                    final url = await authorizationCompleter.future.timeout(
+                      const Duration(
+                        seconds: 10,
+                      ),
+                    );
 
-                      response = await get(
-                        Uri.parse(
-                          '${url.queryParameters['redirect_uri']!}?error=invalid_request',
-                        ),
-                      );
-                    })(),
-                  ],
-                );
-              } catch (e) {
-                // ignored because we are testing the responding to the server request
-              }
+                    await get(
+                      Uri.parse(
+                        '${url.queryParameters['redirect_uri']!}?state=TestState&code=TestCode',
+                      ),
+                    );
+                  })(),
+                ],
+              );
 
               expect(
-                response.statusCode,
-                500,
+                actual,
+                ClientAuthorizationTokenData(
+                  accessToken: 'TestAccessToken',
+                ),
               );
             },
           );
 
           test(
-            'should throw an exception if the token data store has not been set',
+            'should throw an error if the token data store has not been set',
             () {
               expect(
                 () async {
-                  await plugin.signIn();
+                  await plugin.clientAuthorizationTokensForScopes(
+                    ClientAuthorizationTokensForScopesParameters(
+                      request: AuthorizationRequestDetails(
+                        scopes: [
+                          'openid',
+                          'profile',
+                          'email',
+                        ],
+                        userId: null,
+                        email: null,
+                        promptIfUnauthorized: false,
+                      ),
+                    ),
+                  );
                 },
                 throwsA(
-                  isA<PlatformException>(),
+                  isA<GoogleSignInException>(),
                 ),
               );
             },
@@ -2036,242 +1973,43 @@ void main() {
       );
 
       group(
-        'signInSilently',
+        'disconnect',
         () {
-          late GoogleSignInDesktopTokenData Function(
-            Response response, {
-            String? idToken,
-            String? refreshToken,
-          }) createTokenData;
-          late GoogleSignInUserData Function(
-            Response response, {
-            String? idToken,
-          }) createUserData;
           late GoogleSignInDesktop plugin;
 
           setUp(
             () {
-              createTokenData = (
-                response, {
-                idToken,
-                refreshToken,
-              }) {
-                return _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  refreshToken: refreshToken,
-                );
-              };
-
-              createUserData = (
-                response, {
-                idToken,
-              }) {
-                return GoogleSignInUserData(
-                  email: 'TestEmail',
-                  id: 'TestId',
-                  displayName: 'TestDisplayName',
-                  photoUrl: 'TestPhotoUrl',
-                  idToken: idToken ?? 'TestIdToken',
-                );
-              };
-
               plugin = GoogleSignInDesktop(
                 client: client,
-                createTokenData: createTokenData,
-                createUserData: createUserData,
               );
             },
           );
 
           test(
-            'should send a token request if the access token is expired and the refresh token is not null',
+            'should add an event to the authentication events stream',
             () async {
-              plugin.clientSecret = 'TestClientSecret';
+              plugin.tokenDataStore = tokenDataStore;
 
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  refreshToken: 'TestRefreshToken',
-                  isExpired: true,
-                );
+              final authenticationEventCompleter =
+                  Completer<AuthenticationEvent>();
 
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              try {
-                await plugin.signInSilently();
-              } catch (e) {
-                // ignored because we are testing the requesting of the token
-              }
-
-              final request = await tokenCompleter.future.timeout(
-                const Duration(
-                  seconds: 10,
-                ),
-              );
-
-              expect(
-                request.url.scheme,
-                'https',
-              );
-
-              expect(
-                request.url.host,
-                'oauth2.googleapis.com',
-              );
-
-              expect(
-                request.url.path,
-                '/token',
-              );
-
-              expect(
-                request.bodyFields,
-                containsPair(
-                  'client_id',
-                  'TestClientId',
-                ),
-              );
-
-              expect(
-                request.bodyFields,
-                containsPair(
-                  'client_secret',
-                  'TestClientSecret',
-                ),
-              );
-
-              expect(
-                request.bodyFields,
-                containsPair(
-                  'refresh_token',
-                  'TestRefreshToken',
-                ),
-              );
-
-              expect(
-                request.bodyFields,
-                containsPair(
-                  'grant_type',
-                  'refresh_token',
-                ),
-              );
-            },
-          );
-
-          test(
-            'should store the token data if the access token is refreshed',
-            () async {
-              plugin.clientSecret = 'TestClientSecret';
-
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  refreshToken: 'TestRefreshToken',
-                  isExpired: true,
-                );
-
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              try {
-                await plugin.signInSilently();
-              } catch (e) {
-                // ignored because we are testing the storing of the token data
-              }
-
-              expect(
-                tokenDataStore._value?.accessToken,
-                'TestAccessToken',
-              );
-
-              expect(
-                tokenDataStore._value?.refreshToken,
-                'TestRefreshToken',
-              );
-            },
-          );
-
-          test(
-            'should send a userinfo request if the access token is not expired',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  isExpired: false,
-                );
-
-              await plugin.init(
-                scopes: ['openid', 'profile', 'email'],
-                clientId: 'TestClientId',
-              );
-
-              try {
-                await plugin.signInSilently();
-              } catch (e) {
-                // ignored because we are testing the requesting of the userinfo
-              }
-
-              final request = await userinfoCompleter.future.timeout(
-                const Duration(
-                  seconds: 10,
-                ),
-              );
-
-              expect(
-                request.url.scheme,
-                'https',
-              );
-
-              expect(
-                request.url.host,
-                'openidconnect.googleapis.com',
-              );
-
-              expect(
-                request.url.path,
-                '/v1/userinfo',
-              );
-
-              expect(
-                request.headers,
-                containsPair(
-                  'authorization',
-                  'Bearer TestAccessToken',
-                ),
-              );
-            },
-          );
-
-          test(
-            'should add an event to the user data events stream if the access token is not expired',
-            () async {
-              plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData(
-                  accessToken: 'TestAccessToken',
-                  isExpired: false,
-                );
-
-              final userDataCompleter = Completer<GoogleSignInUserData?>();
-
-              final subscription = plugin.userDataEvents.listen(
-                (userData) {
-                  userDataCompleter.complete(userData);
+              final subscription = plugin.authenticationEvents.listen(
+                (authenticationEvent) {
+                  authenticationEventCompleter.complete(authenticationEvent);
                 },
               );
 
-              final userData = await plugin.signInSilently();
+              await plugin.disconnect(
+                DisconnectParams(),
+              );
 
               expect(
-                await userDataCompleter.future.timeout(
+                await authenticationEventCompleter.future.timeout(
                   const Duration(
                     seconds: 10,
                   ),
                 ),
-                userData,
+                isA<AuthenticationEventSignOut>(),
               );
 
               await subscription.cancel();
@@ -2279,30 +2017,93 @@ void main() {
           );
 
           test(
-            'should throw an exception if the token data store has not been set',
-            () {
+            'should revoke the access token if the refresh token is null and the access token is not null',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: null,
+                );
+
+              await plugin.disconnect(
+                DisconnectParams(),
+              );
+
+              final request = await revocationCompleter.future.timeout(
+                const Duration(
+                  seconds: 10,
+                ),
+              );
+
               expect(
-                () async {
-                  await plugin.signInSilently();
-                },
-                throwsA(
-                  isA<PlatformException>(),
+                request.url.queryParameters,
+                containsPair(
+                  'token',
+                  'TestAccessToken',
                 ),
               );
             },
           );
 
           test(
-            'should throw an exception if the token data is null',
-            () {
-              plugin.tokenDataStore = tokenDataStore.._value = null;
+            'should revoke the refresh token if the refresh token is not null',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                  refreshToken: 'TestRefreshToken',
+                );
+
+              await plugin.disconnect(
+                DisconnectParams(),
+              );
+
+              final request = await revocationCompleter.future.timeout(
+                const Duration(
+                  seconds: 10,
+                ),
+              );
 
               expect(
+                request.url.queryParameters,
+                containsPair(
+                  'token',
+                  'TestRefreshToken',
+                ),
+              );
+            },
+          );
+
+          test(
+            'should set the stored token data to null',
+            () async {
+              plugin.tokenDataStore = tokenDataStore
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                );
+
+              await plugin.disconnect(
+                DisconnectParams(),
+              );
+
+              expect(
+                tokenDataStore._value,
+                null,
+              );
+            },
+          );
+
+          test(
+            'should throw an error if the token data store has not been set',
+            () {
+              expect(
                 () async {
-                  await plugin.signInSilently();
+                  await plugin.disconnect(
+                    DisconnectParams(),
+                  );
                 },
                 throwsA(
-                  isA<PlatformException>(),
+                  isA<GoogleSignInException>(),
                 ),
               );
             },
@@ -2322,16 +2123,33 @@ void main() {
           );
 
           test(
-            'should throw an error if the token data store has not been set',
-            () {
-              expect(
-                () async {
-                  await plugin.signOut();
+            'should add an event to the authentication events stream',
+            () async {
+              plugin.tokenDataStore = tokenDataStore;
+
+              final authenticationEventCompleter =
+                  Completer<AuthenticationEvent>();
+
+              final subscription = plugin.authenticationEvents.listen(
+                (authenticationEvent) {
+                  authenticationEventCompleter.complete(authenticationEvent);
                 },
-                throwsA(
-                  isA<Error>(),
-                ),
               );
+
+              await plugin.signOut(
+                SignOutParams(),
+              );
+
+              expect(
+                await authenticationEventCompleter.future.timeout(
+                  const Duration(
+                    seconds: 10,
+                  ),
+                ),
+                isA<AuthenticationEventSignOut>(),
+              );
+
+              await subscription.cancel();
             },
           );
 
@@ -2339,9 +2157,13 @@ void main() {
             'should set the stored token data to null',
             () async {
               plugin.tokenDataStore = tokenDataStore
-                .._value = _GoogleSignInDesktopTokenData();
+                .._value = _GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
+                );
 
-              await plugin.signOut();
+              await plugin.signOut(
+                SignOutParams(),
+              );
 
               expect(
                 tokenDataStore._value,
@@ -2351,30 +2173,18 @@ void main() {
           );
 
           test(
-            'should add an event to the user data events stream',
-            () async {
-              plugin.tokenDataStore = tokenDataStore;
-
-              final userDataCompleter = Completer<GoogleSignInUserData?>();
-
-              final subscription = plugin.userDataEvents.listen(
-                (userData) {
-                  userDataCompleter.complete(userData);
-                },
-              );
-
-              await plugin.signOut();
-
+            'should throw an error if the token data store has not been set',
+            () {
               expect(
-                await userDataCompleter.future.timeout(
-                  const Duration(
-                    seconds: 10,
-                  ),
+                () async {
+                  await plugin.signOut(
+                    SignOutParams(),
+                  );
+                },
+                throwsA(
+                  isA<GoogleSignInException>(),
                 ),
-                null,
               );
-
-              await subscription.cancel();
             },
           );
         },
@@ -2393,7 +2203,7 @@ class _GoogleSignInDesktopTokenData extends GoogleSignInDesktopTokenData {
   final bool? _isExpired;
 
   _GoogleSignInDesktopTokenData({
-    super.accessToken,
+    required super.accessToken,
     super.refreshToken,
     super.scopes,
     bool? isExpired,

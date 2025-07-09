@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_sign_in_desktop/src/create_token_data.dart';
 import 'package:google_sign_in_desktop/src/exceptions/date_header_parse_exception.dart';
 import 'package:google_sign_in_desktop/src/exceptions/response_decode_exception.dart';
 import 'package:google_sign_in_desktop/src/exceptions/token_request_exception.dart';
+import 'package:google_sign_in_desktop/src/functions/create_token_data.dart';
 import 'package:http/http.dart';
 
 void main() {
@@ -78,6 +78,7 @@ void main() {
             createTokenData(
               Response(
                 json.encode({
+                  'access_token': 'TestAccessToken',
                   'id_token': 'TestIdToken',
                 }),
                 200,
@@ -97,7 +98,9 @@ void main() {
           expect(
             createTokenData(
               Response(
-                json.encode({}),
+                json.encode({
+                  'access_token': 'TestAccessToken',
+                }),
                 200,
                 headers: {
                   'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
@@ -116,7 +119,9 @@ void main() {
           expect(
             createTokenData(
               Response(
-                json.encode({}),
+                json.encode({
+                  'access_token': 'TestAccessToken',
+                }),
                 200,
                 headers: {
                   'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
@@ -149,30 +154,13 @@ void main() {
       );
 
       test(
-        'should return a token data without an access token if the response does not contain an access token',
-        () {
-          expect(
-            createTokenData(
-              Response(
-                json.encode({}),
-                200,
-                headers: {
-                  'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
-                },
-              ),
-            ).accessToken,
-            null,
-          );
-        },
-      );
-
-      test(
         'should return a token data with a refresh token if the response has a refresh token',
         () {
           expect(
             createTokenData(
               Response(
                 json.encode({
+                  'access_token': 'TestAccessToken',
                   'refresh_token': 'TestRefreshToken',
                 }),
                 200,
@@ -192,7 +180,9 @@ void main() {
           expect(
             createTokenData(
               Response(
-                json.encode({}),
+                json.encode({
+                  'access_token': 'TestAccessToken',
+                }),
                 200,
                 headers: {
                   'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
@@ -211,7 +201,9 @@ void main() {
           expect(
             createTokenData(
               Response(
-                json.encode({}),
+                json.encode({
+                  'access_token': 'TestAccessToken',
+                }),
                 200,
                 headers: {
                   'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
@@ -230,6 +222,7 @@ void main() {
             createTokenData(
               Response(
                 json.encode({
+                  'access_token': 'TestAccessToken',
                   'expires_in': 3600,
                 }),
                 200,
@@ -250,6 +243,7 @@ void main() {
             createTokenData(
               Response(
                 json.encode({
+                  'access_token': 'TestAccessToken',
                   'scope': 'openid',
                 }),
                 200,
@@ -270,6 +264,7 @@ void main() {
             createTokenData(
               Response(
                 json.encode({
+                  'access_token': 'TestAccessToken',
                   'scope': 'openid profile email',
                 }),
                 200,
@@ -289,7 +284,9 @@ void main() {
           expect(
             createTokenData(
               Response(
-                json.encode({}),
+                json.encode({
+                  'access_token': 'TestAccessToken',
+                }),
                 200,
                 headers: {
                   'date': 'Thu, 1 Jan 1970 00:00:00 GMT',
