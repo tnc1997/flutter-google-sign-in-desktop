@@ -13,6 +13,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData.fromJson({
+                  'access_token': 'TestAccessToken',
                   'id_token': 'TestIdToken',
                 }).idToken,
                 'TestIdToken',
@@ -37,6 +38,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData.fromJson({
+                  'access_token': 'TestAccessToken',
                   'refresh_token': 'TestRefreshToken',
                 }).refreshToken,
                 'TestRefreshToken',
@@ -49,6 +51,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData.fromJson({
+                  'access_token': 'TestAccessToken',
                   'exp': 870393600,
                 }).expiration,
                 DateTime.parse('1997-08-01T00:00:00Z'),
@@ -61,6 +64,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData.fromJson({
+                  'access_token': 'TestAccessToken',
                   'scope': 'openid',
                 }).scopes,
                 ['openid'],
@@ -73,6 +77,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData.fromJson({
+                  'access_token': 'TestAccessToken',
                   'scope': 'openid profile email',
                 }).scopes,
                 ['openid', 'profile', 'email'],
@@ -85,23 +90,6 @@ void main() {
       group(
         'isExpired',
         () {
-          test(
-            'should return null if the access token is null',
-            () {
-              expect(
-                GoogleSignInDesktopTokenData(
-                  accessToken: null,
-                  expiration: DateTime.now().add(
-                    const Duration(
-                      hours: 1,
-                    ),
-                  ),
-                ).isExpired(),
-                null,
-              );
-            },
-          );
-
           test(
             'should return null if the expiration is null',
             () {
@@ -159,6 +147,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
                   idToken: 'TestIdToken',
                 ).toJson(),
                 containsPair(
@@ -189,6 +178,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
                   refreshToken: 'TestRefreshToken',
                 ).toJson(),
                 containsPair(
@@ -204,6 +194,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
                   expiration: DateTime.parse('1997-08-01T00:00:00Z'),
                 ).toJson(),
                 containsPair(
@@ -219,6 +210,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
                   scopes: ['openid'],
                 ).toJson(),
                 containsPair(
@@ -234,6 +226,7 @@ void main() {
             () {
               expect(
                 GoogleSignInDesktopTokenData(
+                  accessToken: 'TestAccessToken',
                   scopes: ['openid', 'profile', 'email'],
                 ).toJson(),
                 containsPair(

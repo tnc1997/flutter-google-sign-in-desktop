@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:http/http.dart';
 
-import 'exceptions/date_header_parse_exception.dart';
-import 'exceptions/response_decode_exception.dart';
-import 'exceptions/token_request_exception.dart';
-import 'google_sign_in_desktop_token_data.dart';
+import '../exceptions/date_header_parse_exception.dart';
+import '../exceptions/response_decode_exception.dart';
+import '../exceptions/token_request_exception.dart';
+import '../google_sign_in_desktop_token_data.dart';
 
 GoogleSignInDesktopTokenData createTokenData(
   Response response, {
@@ -43,8 +43,8 @@ GoogleSignInDesktopTokenData createTokenData(
   }
 
   return GoogleSignInDesktopTokenData(
+    accessToken: body['access_token'] as String,
     idToken: body['id_token'] as String? ?? idToken,
-    accessToken: body['access_token'] as String?,
     refreshToken: body['refresh_token'] as String? ?? refreshToken,
     expiration: date != null && duration != null ? date.add(duration) : null,
     scopes: (body['scope'] as String?)?.split(' '),

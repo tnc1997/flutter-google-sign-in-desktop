@@ -1,6 +1,10 @@
-import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
+class GoogleSignInDesktopTokenData {
+  /// The OAuth2 access token used to access Google services.
+  final String accessToken;
 
-class GoogleSignInDesktopTokenData extends GoogleSignInTokenData {
+  /// A token that can be sent to your own server to verify the authentication data.
+  final String? idToken;
+
   /// The OAuth2 refresh token that is used to refresh the [accessToken].
   final String? refreshToken;
 
@@ -10,10 +14,9 @@ class GoogleSignInDesktopTokenData extends GoogleSignInTokenData {
   /// The scopes that were granted to the [accessToken].
   final List<String>? scopes;
 
-  GoogleSignInDesktopTokenData({
-    super.idToken,
-    super.accessToken,
-    super.serverAuthCode,
+  const GoogleSignInDesktopTokenData({
+    required this.accessToken,
+    this.idToken,
     this.refreshToken,
     this.expiration,
     this.scopes,
@@ -33,17 +36,17 @@ class GoogleSignInDesktopTokenData extends GoogleSignInTokenData {
     }
 
     return GoogleSignInDesktopTokenData(
+      accessToken: json['access_token'] as String,
       idToken: json['id_token'] as String?,
-      accessToken: json['access_token'] as String?,
       refreshToken: json['refresh_token'] as String?,
       expiration: expiration,
       scopes: (json['scope'] as String?)?.split(' '),
     );
   }
 
-  /// Returns true if the expiration is before now; otherwise, false if the expiration is not before now; otherwise, null if the access token is null or if the expiration is null.
+  /// Returns true if the expiration is before now; otherwise, false if the expiration is not before now.
   bool? isExpired() {
-    return accessToken != null ? expiration?.isBefore(DateTime.now()) : null;
+    return expiration?.isBefore(DateTime.now());
   }
 
   /// Returns this token data as JSON.
@@ -55,8 +58,8 @@ class GoogleSignInDesktopTokenData extends GoogleSignInTokenData {
     }
 
     return {
-      'id_token': idToken,
       'access_token': accessToken,
+      'id_token': idToken,
       'refresh_token': refreshToken,
       'exp': exp,
       'scope': scopes?.join(' '),
